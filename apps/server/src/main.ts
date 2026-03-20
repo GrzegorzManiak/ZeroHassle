@@ -37,23 +37,17 @@ import { defaultUserSettings } from './lib/schemas';
 import { createLocalJWKSet, jwtVerify } from 'jose';
 import { enableBrainFunction } from './lib/brain';
 import { trpcServer } from '@hono/trpc-server';
-import { agentsMiddleware } from 'hono-agents';
-import { ZeroMCP } from './routes/agent/mcp';
 import { publicRouter } from './routes/auth';
 import { WorkflowRunner } from './pipelines';
-import { autumnApi } from './routes/autumn';
 import { initTracing } from './lib/tracing';
 import { env, type ZeroEnv } from './env';
 import type { HonoContext } from './ctx';
 import { createDb, type DB } from './db';
 import { createAuth } from './lib/auth';
-import { aiRouter } from './routes/ai';
+import { ZeroMCP } from './routes/agent/mcp';
 import { appRouter } from './trpc';
 import { cors } from 'hono/cors';
 import { Hono } from 'hono';
-
-const SENTRY_HOST = 'o4509328786915328.ingest.us.sentry.io';
-const SENTRY_PROJECT_IDS = new Set(['4509328795303936']);
 
 export class DbRpcDO extends RpcTarget {
   constructor(
@@ -703,8 +697,6 @@ const api = new Hono<HonoContext>()
     c.set('sessionUser', undefined);
     c.set('auth', undefined as any);
   })
-  .route('/ai', aiRouter)
-  .route('/autumn', autumnApi)
   .route('/public', publicRouter)
   .on(['GET', 'POST', 'OPTIONS'], '/auth/*', (c) => {
     return c.var.auth.handler(c.req.raw);
@@ -762,102 +754,9 @@ const app = new Hono<HonoContext>()
     const auth = createAuth();
     return oAuthDiscoveryMetadata(auth)(c.req.raw);
   })
-  .mount(
-    '/sse',
-    async (request, env, ctx) => {
-      const authBearer = request.headers.get('Authorization');
-      if (!authBearer) {
-        console.log('No auth provided');
-        return new Response('Unauthorized', { status: 401 });
-      }
-      const auth = createAuth();
-      const session = await auth.api.getMcpSession({ headers: request.headers });
-      if (!session) {
-        console.log('Invalid auth provided', Array.from(request.headers.entries()));
-        return new Response('Unauthorized', { status: 401 });
-      }
-      ctx.props = {
-        userId: session?.userId,
-      };
-      return ZeroMCP.serveSSE('/sse', { binding: 'ZERO_MCP' }).fetch(request, env, ctx);
-    },
-    { replaceRequest: false },
-  )
-  .mount(
-    '/mcp/thinking/sse',
-    async (request, env, ctx) => {
-      return ThinkingMCP.serveSSE('/mcp/thinking/sse', { binding: 'THINKING_MCP' }).fetch(
-        request,
-        env,
-        ctx,
-      );
-    },
-    { replaceRequest: false },
-  )
-  .mount(
-    '/mcp',
-    async (request, env, ctx) => {
-      const authBearer = request.headers.get('Authorization');
-      if (!authBearer) {
-        return new Response('Unauthorized', { status: 401 });
-      }
-      const auth = createAuth();
-      const session = await auth.api.getMcpSession({ headers: request.headers });
-      if (!session) {
-        console.log('Invalid auth provided', Array.from(request.headers.entries()));
-        return new Response('Unauthorized', { status: 401 });
-      }
-      ctx.props = {
-        userId: session?.userId,
-      };
-      return ZeroMCP.serve('/mcp', { binding: 'ZERO_MCP' }).fetch(request, env, ctx);
-    },
-    { replaceRequest: false },
-  )
   .route('/api', api)
-  .use(
-    '*',
-    agentsMiddleware({
-      options: {
-        onBeforeConnect: (c) => {
-          if (!c.headers.get('Cookie')) {
-            return new Response('Unauthorized', { status: 401 });
-          }
-        },
-      },
-    }),
-  )
   .get('/health', (c) => c.json({ message: 'Zero Server is Up!' }))
   .get('/', (c) => c.redirect(`${env.VITE_PUBLIC_APP_URL}`))
-  .post('/monitoring/sentry', async (c) => {
-    try {
-      const envelopeBytes = await c.req.arrayBuffer();
-      const envelope = new TextDecoder().decode(envelopeBytes);
-      const piece = envelope.split('\n')[0];
-      const header = JSON.parse(piece);
-      const dsn = new URL(header['dsn']);
-      const project_id = dsn.pathname?.replace('/', '');
-
-      if (dsn.hostname !== SENTRY_HOST) {
-        throw new Error(`Invalid sentry hostname: ${dsn.hostname}`);
-      }
-
-      if (!project_id || !SENTRY_PROJECT_IDS.has(project_id)) {
-        throw new Error(`Invalid sentry project id: ${project_id}`);
-      }
-
-      const upstream_sentry_url = `https://${SENTRY_HOST}/api/${project_id}/envelope/`;
-      await fetch(upstream_sentry_url, {
-        method: 'POST',
-        body: envelopeBytes,
-      });
-
-      return c.json({}, { status: 200 });
-    } catch (e) {
-      console.error('error tunneling to sentry', e);
-      return c.json({ error: 'error tunneling to sentry' }, { status: 500 });
-    }
-  })
   .post('/a8n/notify/:providerId', async (c) => {
     const tracer = initTracing();
     const span = tracer.startSpan('a8n_notify', {
