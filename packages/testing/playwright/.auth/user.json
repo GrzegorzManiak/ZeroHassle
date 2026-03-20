@@ -1,0 +1,35 @@
+{
+  "cookies": [
+    {
+      "name": "PARAGLIDE_LOCALE",
+      "value": "en",
+      "domain": "localhost",
+      "path": "/",
+      "expires": 1808602898.363397,
+      "httpOnly": false,
+      "secure": false,
+      "sameSite": "Lax"
+    },
+    {
+      "name": "better-auth-dev.session_token",
+      "value": "QCYSuCpfb1kjBuwdgRQZsMtslkJ1YQSM.EH8sOGVgjKtc%2BNct66VUChSOPaHjWSAjMBRxWywb0CE%3D",
+      "domain": "localhost",
+      "path": "/",
+      "expires": 1776634899.12289,
+      "httpOnly": true,
+      "secure": false,
+      "sameSite": "Lax"
+    },
+    {
+      "name": "better-auth-dev.session_data",
+      "value": "eyJzZXNzaW9uIjp7InNlc3Npb24iOnsiaXBBZGRyZXNzIjoiIiwidXNlckFnZW50IjoiTW96aWxsYS81LjAgKFdpbmRvd3MgTlQgMTAuMDsgV2luNjQ7IHg2NCkgQXBwbGVXZWJLaXQvNTM3LjM2IChLSFRNTCwgbGlrZSBHZWNrbykgQ2hyb21lLzE0NS4wLjc2MzIuNiBTYWZhcmkvNTM3LjM2IiwiZXhwaXJlc0F0IjoiMjAyNi0wNC0xOVQyMTo0MTozOS4wOTdaIiwidXNlcklkIjoiZWMwNjE0ZTktNTJjYi00MGUwLWIyOTUtYTRkYzE4M2E0OWVlIiwidG9rZW4iOiJRQ1lTdUNwZmIxa2pCdXdkZ1JRWnNNdHNsa0oxWVFTTSIsImNyZWF0ZWRBdCI6IjIwMjYtMDMtMjBUMjE6NDE6MzkuMDk3WiIsInVwZGF0ZWRBdCI6IjIwMjYtMDMtMjBUMjE6NDE6MzkuMDk3WiJ9LCJ1c2VyIjp7Im5hbWUiOiJQbGF5d3JpZ2h0IFVzZXIiLCJlbWFpbCI6Im93bmVyQGxvY2FsLnRlc3QiLCJlbWFpbFZlcmlmaWVkIjp0cnVlLCJpbWFnZSI6bnVsbCwiY3JlYXRlZEF0IjoiMjAyNi0wMy0yMFQyMDo0MjowMi4zODlaIiwidXBkYXRlZEF0IjoiMjAyNi0wMy0yMFQyMTo0MTozNi44ODNaIiwidHdvRmFjdG9yRW5hYmxlZCI6dHJ1ZSwiaWQiOiJlYzA2MTRlOS01MmNiLTQwZTAtYjI5NS1hNGRjMTgzYTQ5ZWUifX0sImV4cGlyZXNBdCI6MTc3NjYzNDg5OTEwNSwic2lnbmF0dXJlIjoiMU5YRUZSOUo0Qm5PLWdpX0hFWUpaeTdtblo0SUlKSl9GX3E0aG1ZOG5XWSJ9",
+      "domain": "localhost",
+      "path": "/",
+      "expires": 1776634899.123007,
+      "httpOnly": true,
+      "secure": false,
+      "sameSite": "Lax"
+    }
+  ],
+  "origins": []
+}
