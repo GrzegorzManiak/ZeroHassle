@@ -4,7 +4,7 @@ import { useQuery } from '@tanstack/react-query';
 export const useSummary = (threadId: string | null) => {
   const trpc = useTRPC();
   const summaryQuery = useQuery(
-    trpc.brain.generateSummary.queryOptions(
+    trpc.ai.generateSummary.queryOptions(
       { threadId: threadId! },
       {
         enabled: !!threadId,
@@ -16,15 +16,8 @@ export const useSummary = (threadId: string | null) => {
 };
 
 export const useBrainState = () => {
-  const trpc = useTRPC();
-  const brainStateQuery = useQuery(
-    trpc.brain.getState.queryOptions(undefined, {
-      staleTime: 1000 * 60 * 60, // 1 hour
-      refetchOnMount: false,
-      refetchOnWindowFocus: false,
-      refetchOnReconnect: false,
-    }),
-  );
-
-  return brainStateQuery;
+  return {
+    data: { enabled: true },
+    isLoading: false,
+  };
 };

@@ -1,30 +1,22 @@
-import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from '@/components/ui/tooltip';
-import { ArrowsPointingIn, PanelLeftOpen, Phone } from '../icons/icons';
-import { useActiveConnection } from '@/hooks/use-connections';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { ArrowsPointingIn, PanelLeftOpen } from '../icons/icons';
 import { ResizablePanel } from '@/components/ui/resizable';
-import { useSearchValue } from '@/hooks/use-search-value';
-import { useState, useEffect, useCallback } from 'react';
-import useSearchLabels from '@/hooks/use-labels-search';
-import { useQueryClient } from '@tanstack/react-query';
-import { AIChat } from '@/components/create/ai-chat';
-import { useTRPC } from '@/providers/query-provider';
-import { Tools } from '../../../server/src/types';
-import { useDoState } from '../mail/use-do-state';
-import { useBilling } from '@/hooks/use-billing';
-import { PromptsDialog } from './prompts-dialog';
+import { AIChat, type SimpleAIMessage } from '@/components/create/ai-chat';
 import { Button } from '@/components/ui/button';
 import { useHotkeys } from 'react-hotkeys-hook';
-import { useLabels } from '@/hooks/use-labels';
-import { useAgentChat } from 'agents/ai-react';
-import { X, Expand, Plus } from 'lucide-react';
-import { IncomingMessageType } from '../party';
-import { Gauge } from '@/components/ui/gauge';
+import { useTRPC } from '@/providers/query-provider';
+import { X, Expand } from 'lucide-react';
 import { useParams } from 'react-router';
-import { useAgent } from 'agents/react';
+import { useMutation } from '@tanstack/react-query';
+import { useCallback, useMemo, useState } from 'react';
 import { useQueryState } from 'nuqs';
 import { cn } from '@/lib/utils';
-import posthog from 'posthog-js';
-import { toast } from 'sonner';
+
+interface AISidebarProps {
+  className?: string;
+}
+
+type ViewMode = 'sidebar' | 'popup' | 'fullscreen';
 
 interface ChatHeaderProps {
   onClose: () => void;
@@ -32,7 +24,6 @@ interface ChatHeaderProps {
   onToggleViewMode: () => void;
   isFullScreen: boolean;
   isPopup: boolean;
-  isPro: boolean;
   onNewChat: () => void;
 }
 
@@ -42,18 +33,15 @@ function ChatHeader({
   onToggleViewMode,
   isFullScreen,
   isPopup,
-  isPro,
   onNewChat,
 }: ChatHeaderProps) {
-  const [, setPricingDialog] = useQueryState('pricingDialog');
-  const { chatMessages } = useBilling();
   return (
-    <div className="relative flex items-center justify-between px-2.5 pb-[10px] pt-[13px]">
+    <div className="flex items-center justify-between px-2.5 pb-[10px] pt-[13px]">
       <TooltipProvider delayDuration={0}>
         <Tooltip>
           <TooltipTrigger asChild>
             <Button onClick={onClose} variant="ghost" className="md:h-fit md:px-2">
-              <X className="dark:text-iconDark text-iconLight" />
+              <X className="text-iconLight dark:text-iconDark" />
               <span className="sr-only">Close chat</span>
             </Button>
           </TooltipTrigger>
@@ -62,105 +50,49 @@ function ChatHeader({
       </TooltipProvider>
 
       <div className="flex items-center gap-2">
-        {isFullScreen ? (
+        <TooltipProvider delayDuration={0}>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                onClick={onToggleFullScreen}
+                variant="ghost"
+                className="hidden md:flex md:h-fit md:px-2"
+              >
+                {isFullScreen ? (
+                  <ArrowsPointingIn className="fill-iconLight dark:fill-iconDark" />
+                ) : (
+                  <Expand className="text-iconLight dark:text-iconDark" />
+                )}
+                <span className="sr-only">Toggle full screen</span>
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>{isFullScreen ? 'Exit full screen' : 'Go full screen'}</TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
+
+        {!isFullScreen ? (
           <TooltipProvider delayDuration={0}>
             <Tooltip>
               <TooltipTrigger asChild>
                 <Button
-                  onClick={onToggleFullScreen}
+                  onClick={onToggleViewMode}
                   variant="ghost"
                   className="hidden md:flex md:h-fit md:px-2"
                 >
-                  <ArrowsPointingIn className="dark:fill-iconDark fill-iconLight" />
+                  <PanelLeftOpen className="fill-iconLight dark:fill-iconDark" />
                   <span className="sr-only">Toggle view mode</span>
                 </Button>
               </TooltipTrigger>
-              <TooltipContent>Remove full screen</TooltipContent>
+              <TooltipContent>Go to {isPopup ? 'sidebar' : 'popup'}</TooltipContent>
             </Tooltip>
           </TooltipProvider>
-        ) : (
-          <>
-            <TooltipProvider delayDuration={0}>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    onClick={onToggleFullScreen}
-                    variant="ghost"
-                    className="hidden md:flex md:h-fit md:px-2"
-                  >
-                    <Expand className="dark:text-iconDark text-iconLight" />
-                    <span className="sr-only">Toggle view mode</span>
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>Go to full screen</TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
-
-            <TooltipProvider delayDuration={0}>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    onClick={onToggleViewMode}
-                    variant="ghost"
-                    className="hidden md:flex md:h-fit md:px-2"
-                  >
-                    {isPopup ? (
-                      <PanelLeftOpen className="dark:fill-iconDark fill-iconLight" />
-                    ) : (
-                      <Phone className="dark:fill-iconDark fill-iconLight" />
-                    )}
-                    <span className="sr-only"></span>
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>Go to {isPopup ? 'sidebar' : 'popup'}</TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
-          </>
-        )}
-
-        {!isPro && (
-          <>
-            <TooltipProvider delayDuration={0}>
-              <Tooltip>
-                <TooltipTrigger asChild className="md:h-fit md:px-2">
-                  <div>
-                    <Gauge
-                      max={chatMessages.included_usage}
-                      value={chatMessages.usage}
-                      size="small"
-                      showValue={true}
-                    />
-                  </div>
-                </TooltipTrigger>
-                <TooltipContent>
-                  <p>
-                    You've used {chatMessages.usage} out of {chatMessages.included_usage} chat
-                    messages.
-                  </p>
-                  <p className="mb-2">Upgrade for unlimited messages!</p>
-                  <Button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setPricingDialog('true');
-                    }}
-                    className="h-8 w-full"
-                  >
-                    Start 7 day free trial
-                  </Button>
-                </TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
-          </>
-        )}
-
-        <PromptsDialog />
+        ) : null}
 
         <TooltipProvider delayDuration={0}>
           <Tooltip>
             <TooltipTrigger asChild>
               <Button onClick={onNewChat} variant="ghost" className="md:h-fit md:px-2">
-                <Plus className="dark:text-iconDark text-iconLight" />
-                <span className="sr-only">New chat</span>
+                New
               </Button>
             </TooltipTrigger>
             <TooltipContent>New chat</TooltipContent>
@@ -171,90 +103,12 @@ function ChatHeader({
   );
 }
 
-interface AISidebarProps {
-  className?: string;
-}
-
-type ViewMode = 'sidebar' | 'popup' | 'fullscreen';
-
 export function useAIFullScreen() {
   const [isFullScreenQuery, setIsFullScreenQuery] = useQueryState('isFullScreen');
 
-  // Initialize isFullScreen state from query parameter or localStorage
-  const [isFullScreen, setIsFullScreenState] = useState<boolean>(() => {
-    // First check query parameter
-    if (isFullScreenQuery) {
-      return isFullScreenQuery === 'true';
-    }
-
-    // Then check localStorage if on client
-    if (typeof window !== 'undefined') {
-      const savedFullScreen = localStorage.getItem('ai-fullscreen');
-      if (savedFullScreen) {
-        return savedFullScreen === 'true';
-      }
-    }
-
-    return false;
-  });
-
-  // Update both query parameter and localStorage when fullscreen state changes
-  const setIsFullScreen = useCallback(
-    (value: boolean) => {
-      // Immediately update local state for faster UI response
-      setIsFullScreenState(value);
-
-      // For exiting fullscreen, we need to be extra careful to ensure state is updated properly
-      if (!value) {
-        // Force immediate removal from localStorage for faster response
-        if (typeof window !== 'undefined') {
-          localStorage.removeItem('ai-fullscreen');
-        }
-
-        // Use setTimeout to ensure the state update happens in the next tick
-        // This helps prevent the need for double-clicking
-        setTimeout(() => {
-          setIsFullScreenQuery(null).catch(console.error);
-        }, 0);
-      } else {
-        // For entering fullscreen, we can use the normal flow
-        setIsFullScreenQuery('true').catch(console.error);
-
-        // Save to localStorage for persistence across sessions
-        if (typeof window !== 'undefined') {
-          localStorage.setItem('ai-fullscreen', 'true');
-        }
-      }
-    },
-    [setIsFullScreenQuery],
-  );
-
-  // Sync with query parameter on mount or when it changes
-  useEffect(() => {
-    const queryValue = isFullScreenQuery === 'true';
-    if (isFullScreenQuery !== null && queryValue !== isFullScreen) {
-      setIsFullScreenState(queryValue);
-    }
-  }, [isFullScreenQuery, isFullScreen]);
-
-  // Initialize from localStorage on mount if query parameter is not set
-  useEffect(() => {
-    if (typeof window !== 'undefined' && !isFullScreenQuery) {
-      const savedFullScreen = localStorage.getItem('ai-fullscreen');
-      if (savedFullScreen === 'true') {
-        setIsFullScreenQuery('true');
-      }
-    }
-
-    // Force a re-render when exiting fullscreen mode
-    if (isFullScreenQuery === null && isFullScreen) {
-      setIsFullScreenState(false);
-    }
-  }, [isFullScreenQuery, setIsFullScreenQuery, isFullScreen]);
-
   return {
-    isFullScreen,
-    setIsFullScreen,
+    isFullScreen: isFullScreenQuery === 'true',
+    setIsFullScreen: (value: boolean) => setIsFullScreenQuery(value ? 'true' : null),
   };
 }
 
@@ -263,72 +117,17 @@ export function useAISidebar() {
   const [viewModeQuery, setViewModeQuery] = useQueryState('viewMode');
   const { isFullScreen, setIsFullScreen } = useAIFullScreen();
 
-  // Initialize viewMode from query parameter, localStorage, or default to 'sidebar'
-  const [viewMode, setViewModeState] = useState<ViewMode>(() => {
-    if (viewModeQuery) return viewModeQuery as ViewMode;
-
-    // Check localStorage for saved state if on client
-    if (typeof window !== 'undefined') {
-      const savedViewMode = localStorage.getItem('ai-viewmode');
-      if (savedViewMode && (savedViewMode === 'sidebar' || savedViewMode === 'popup')) {
-        return savedViewMode as ViewMode;
-      }
-    }
-
-    return 'popup';
-  });
-
-  // Update query parameter and localStorage when viewMode changes
-  const setViewMode = useCallback(
-    (mode: ViewMode) => {
-      setViewModeState(mode);
-      setViewModeQuery(mode === 'popup' ? null : mode);
-
-      // Save to localStorage for persistence across sessions
-      if (typeof window !== 'undefined') {
-        localStorage.setItem('ai-viewmode', mode);
-      }
-    },
-    [setViewModeQuery],
-  );
-
-  const setOpen = useCallback(
-    (openState: boolean) => {
-      if (!openState) {
-        if (typeof window !== 'undefined') {
-          localStorage.removeItem('ai-sidebar-open');
-        }
-        setTimeout(() => {
-          setOpenQuery(null).catch(console.error);
-        }, 0);
-      } else {
-        setOpenQuery('true').catch(console.error);
-        if (typeof window !== 'undefined') {
-          localStorage.setItem('ai-sidebar-open', 'true');
-        }
-      }
-    },
-    [setOpenQuery],
-  );
-
-  const toggleOpen = useCallback(() => setOpen(open !== 'true'), [open, setOpen]);
-
-  useEffect(() => {
-    if (viewModeQuery && viewModeQuery !== viewMode) {
-      setViewModeState(viewModeQuery as ViewMode);
-    }
-  }, [viewModeQuery, viewMode]);
+  const viewMode = (viewModeQuery as ViewMode | null) ?? 'popup';
 
   return {
-    open: !!open,
+    open: open === 'true',
     viewMode,
-    setViewMode,
-    setOpen,
-    toggleOpen,
-    toggleViewMode: () => setViewMode(viewMode === 'popup' ? 'sidebar' : 'popup'),
+    setViewMode: (mode: ViewMode) => setViewModeQuery(mode === 'popup' ? null : mode),
+    setOpen: (nextOpen: boolean) => setOpenQuery(nextOpen ? 'true' : null),
+    toggleOpen: () => setOpenQuery(open === 'true' ? null : 'true'),
+    toggleViewMode: () => setViewModeQuery(viewMode === 'popup' ? 'sidebar' : null),
     isFullScreen,
     setIsFullScreen,
-    // Add convenience boolean flags for each state
     isSidebar: viewMode === 'sidebar',
     isPopup: viewMode === 'popup',
   };
@@ -337,221 +136,129 @@ export function useAISidebar() {
 function AISidebar({ className }: AISidebarProps) {
   const { open, setOpen, isFullScreen, setIsFullScreen, toggleViewMode, isSidebar, isPopup } =
     useAISidebar();
-  const { isPro, track, refetch: refetchBilling } = useBilling();
-  const queryClient = useQueryClient();
   const trpc = useTRPC();
   const [threadId] = useQueryState('threadId');
+  const [searchValue] = useQueryState('search');
   const { folder } = useParams<{ folder: string }>();
-  const { refetch: refetchLabels } = useLabels();
-  const [searchValue] = useSearchValue();
-  const { data: activeConnection } = useActiveConnection();
-  const [, setDoState] = useDoState();
-  const { labels } = useSearchLabels();
+  const [input, setInput] = useState('');
+  const [messages, setMessages] = useState<SimpleAIMessage[]>([]);
 
-  const onMessage = useCallback(
-    (message: any) => {
-      try {
-        const parsedData = JSON.parse(message.data);
-        const { type } = parsedData;
-        if (type === IncomingMessageType.Mail_Get) {
-          const { threadId } = parsedData;
-          queryClient.invalidateQueries({
-            queryKey: trpc.mail.get.queryKey({ id: threadId }),
-          });
-        } else if (type === IncomingMessageType.Mail_List) {
-          const { folder } = parsedData;
-          queryClient.invalidateQueries({
-            queryKey: trpc.mail.listThreads.infiniteQueryKey({
-              folder,
-              labelIds: labels,
-              q: searchValue.value,
-            }),
-          });
-        } else if (type === IncomingMessageType.User_Topics) {
-          queryClient.invalidateQueries({
-            queryKey: trpc.labels.list.queryKey(),
-          });
-        } else if (type === IncomingMessageType.Do_State) {
-          const { isSyncing, syncingFolders, storageSize, counts, shards } = parsedData;
-          setDoState({ isSyncing, syncingFolders, storageSize, counts: counts ?? [], shards });
-        }
-      } catch (error) {
-        console.error('error parsing party message', error, { rawMessage: message.data });
-      }
-    },
-    [queryClient, trpc, labels, searchValue.value, setDoState],
-  );
-
-  const agent = useAgent({
-    agent: 'ZeroAgent',
-    name: activeConnection?.id ? String(activeConnection.id) : 'general',
-    host: `${import.meta.env.VITE_PUBLIC_BACKEND_URL}`,
-    onError: (e) => console.log(e),
-    onMessage,
-  });
-
-  const chatState = useAgentChat({
-    getInitialMessages: async () => {
-      return [];
-    },
-    agent,
-    maxSteps: 10,
-    body: {
-      threadId: threadId ?? undefined,
-      currentFolder: folder ?? undefined,
-      currentFilter: searchValue.value ?? undefined,
-    },
-    onError(error) {
-      console.error('Error in useChat', error);
-      posthog.capture('AI Chat Error', {
-        error: error.message,
-        threadId: threadId ?? undefined,
-        currentFolder: folder ?? undefined,
-        currentFilter: searchValue.value ?? undefined,
-        messages: chatState.messages,
-      });
-      toast.error('Error, please try again later');
-    },
-    onResponse: (response) => {
-      posthog.capture('AI Chat Response', {
-        response,
-        threadId: threadId ?? undefined,
-        currentFolder: folder ?? undefined,
-        currentFilter: searchValue.value ?? undefined,
-        messages: chatState.messages,
-      });
-      if (!response.ok) {
-        throw new Error('Failed to send message');
-      }
-    },
-    async onToolCall({ toolCall }) {
-      console.warn('toolCall', toolCall);
-      posthog.capture('AI Chat Tool Call', {
-        toolCall,
-        threadId: threadId ?? undefined,
-        currentFolder: folder ?? undefined,
-        currentFilter: searchValue.value ?? undefined,
-        messages: chatState.messages,
-      });
-      switch (toolCall.toolName) {
-        case Tools.CreateLabel:
-        case Tools.DeleteLabel:
-          await refetchLabels();
-          break;
-        case Tools.SendEmail:
-          await queryClient.invalidateQueries({
-            queryKey: trpc.mail.listThreads.queryKey({ folder: 'sent' }),
-          });
-          break;
-        case Tools.MarkThreadsRead:
-        case Tools.MarkThreadsUnread:
-        case Tools.ModifyLabels:
-        case Tools.BulkDelete:
-          console.log('modifyLabels', toolCall.args);
-          await refetchLabels();
-          await Promise.all(
-            (toolCall.args as { threadIds: string[] }).threadIds.map((id) =>
-              queryClient.invalidateQueries({
-                queryKey: trpc.mail.get.queryKey({ id }),
-              }),
-            ),
-          );
-          break;
-      }
-      await track({ featureId: 'chat-messages', value: 1 });
-      await refetchBilling();
-    },
-  });
+  const mutation = useMutation(trpc.ai.chat.mutationOptions());
 
   useHotkeys('Meta+0', () => {
     setOpen(!open);
   });
 
-  const handleNewChat = useCallback(() => {
-    chatState.setMessages([]);
-  }, [chatState]);
+  const submitMessage = useCallback(async () => {
+    const prompt = input.trim();
+    if (!prompt || mutation.isPending) {
+      return;
+    }
+
+    const userMessage: SimpleAIMessage = {
+      id: crypto.randomUUID(),
+      role: 'user',
+      content: prompt,
+    };
+
+    setMessages((current) => [...current, userMessage]);
+    setInput('');
+
+    const response = await mutation.mutateAsync({
+      prompt,
+      threadId: threadId ?? undefined,
+      currentFolder: folder ?? undefined,
+      currentFilter: searchValue ?? undefined,
+    });
+
+    setMessages((current) => [
+      ...current,
+      {
+        id: crypto.randomUUID(),
+        role: 'assistant',
+        content: response.text,
+      },
+    ]);
+  }, [folder, input, mutation, searchValue, threadId]);
+
+  const clearMessages = useCallback(() => {
+    setMessages([]);
+    setInput('');
+  }, []);
+
+  const chat = useMemo(
+    () => (
+      <AIChat
+        messages={messages}
+        input={input}
+        setInput={setInput}
+        onSubmit={submitMessage}
+        onClear={clearMessages}
+        isLoading={mutation.isPending}
+        className={className}
+      />
+    ),
+    [className, clearMessages, input, messages, mutation.isPending, submitMessage],
+  );
+
+  if (!open) {
+    return null;
+  }
 
   return (
     <>
-      {open && (
+      {isSidebar && !isFullScreen ? (
         <>
-          {/* Desktop view - visible on md and larger screens */}
-          {isSidebar && !isFullScreen && (
-            <>
-              <div className="w-px opacity-0" />
-              <ResizablePanel
-                defaultSize={24}
-                minSize={24}
-                maxSize={24}
-                className="bg-panelLight dark:bg-panelDark mb-1 mr-1 hidden h-[calc(100dvh-8px)] shadow-sm md:block md:rounded-2xl md:shadow-sm"
-              >
-                <div className={cn('h-[calc(98vh)]', 'flex flex-col', '', className)}>
-                  <div className="flex h-full flex-col">
-                    <ChatHeader
-                      onClose={() => {
-                        setOpen(false);
-                        setIsFullScreen(false);
-                      }}
-                      onToggleFullScreen={() => setIsFullScreen(!isFullScreen)}
-                      onToggleViewMode={toggleViewMode}
-                      isFullScreen={isFullScreen}
-                      isPopup={isPopup}
-                      isPro={isPro ?? false}
-                      onNewChat={handleNewChat}
-                    />
-                    <div className="relative flex-1 overflow-hidden">
-                      <AIChat {...chatState} />
-                    </div>
-                  </div>
-                </div>
-              </ResizablePanel>
-            </>
+          <div className="w-px opacity-0" />
+          <ResizablePanel
+            defaultSize={24}
+            minSize={24}
+            maxSize={28}
+            className="bg-panelLight dark:bg-panelDark mb-1 mr-1 hidden h-[calc(100dvh-8px)] shadow-sm md:block md:rounded-2xl"
+          >
+            <div className={cn('flex h-full flex-col', className)}>
+              <ChatHeader
+                onClose={() => {
+                  setOpen(false);
+                  setIsFullScreen(false);
+                }}
+                onToggleFullScreen={() => setIsFullScreen(!isFullScreen)}
+                onToggleViewMode={toggleViewMode}
+                isFullScreen={isFullScreen}
+                isPopup={isPopup}
+                onNewChat={clearMessages}
+              />
+              <div className="relative flex-1 overflow-hidden">{chat}</div>
+            </div>
+          </ResizablePanel>
+        </>
+      ) : (
+        <div
+          className={cn(
+            'fixed inset-0 z-50 flex items-center justify-center bg-transparent p-4 backdrop-blur-sm transition-opacity duration-150 sm:inset-auto sm:bottom-4 sm:right-4 sm:flex-col sm:items-end sm:justify-end sm:p-0',
+            isFullScreen ? 'inset-0! p-0! backdrop-blur-none!' : '',
           )}
-
-          {/* Popup view - visible on small screens or when popup mode is selected */}
+        >
           <div
-            tabIndex={0}
             className={cn(
-              'fixed inset-0 z-50 flex items-center justify-center bg-transparent p-4 backdrop-blur-sm transition-opacity duration-150 sm:inset-auto sm:bottom-4 sm:right-4 sm:flex-col sm:items-end sm:justify-end sm:p-0 lg:opacity-40 lg:hover:opacity-100',
-              'md:hidden',
-              isPopup && !isFullScreen && 'md:flex',
-              isFullScreen && 'inset-0! flex! p-0! opacity-100! backdrop-blur-none!',
-              'rounded-2xl focus:opacity-100',
+              'bg-panelLight dark:bg-panelDark flex h-[calc(100dvh-2rem)] w-full max-w-xl flex-col rounded-3xl border shadow-2xl sm:h-[75dvh] sm:w-[28rem]',
+              isFullScreen ? 'h-full max-w-none rounded-none' : '',
             )}
           >
-            <div
-              className={cn(
-                'bg-panelLight dark:bg-panelDark w-full overflow-hidden rounded-2xl border border-[#E7E7E7] shadow-lg dark:border-[#252525]',
-                'md:hidden',
-                isPopup && !isFullScreen && 'w-[600px] max-w-[90vw] sm:w-[400px] md:block',
-                isFullScreen && 'block! max-w-none! rounded-none! border-none!',
-              )}
-            >
-              <div
-                className={cn(
-                  'flex w-full flex-col',
-                  isFullScreen ? 'h-screen' : 'h-[90vh] sm:h-[600px] sm:max-h-[85vh]',
-                )}
-              >
-                <ChatHeader
-                  onClose={() => {
-                    setOpen(false);
-                    setIsFullScreen(false);
-                  }}
-                  onToggleFullScreen={() => setIsFullScreen(!isFullScreen)}
-                  onToggleViewMode={toggleViewMode}
-                  isFullScreen={isFullScreen}
-                  isPopup={isPopup}
-                  isPro={isPro ?? false}
-                  onNewChat={handleNewChat}
-                />
-                <div className="relative flex-1 overflow-hidden">
-                  <AIChat {...chatState} />
-                </div>
-              </div>
-            </div>
+            <ChatHeader
+              onClose={() => {
+                setOpen(false);
+                setIsFullScreen(false);
+              }}
+              onToggleFullScreen={() => setIsFullScreen(!isFullScreen)}
+              onToggleViewMode={toggleViewMode}
+              isFullScreen={isFullScreen}
+              isPopup={isPopup}
+              onNewChat={clearMessages}
+            />
+            <div className="relative flex-1 overflow-hidden">{chat}</div>
           </div>
-        </>
+        </div>
       )}
     </>
   );

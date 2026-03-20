@@ -1,35 +1,33 @@
-import {
-  GmailSearchAssistantSystemPrompt,
-  OutlookSearchAssistantSystemPrompt,
-} from '../../../lib/prompts';
+import { GmailSearchAssistantSystemPrompt } from '../../../lib/prompts';
+import { generateOpenRouterText } from '../../../lib/openrouter';
 import { activeDriverProcedure } from '../../trpc';
-import { openai } from '@ai-sdk/openai';
-import { generateObject } from 'ai';
-import { env } from '../../../env';
 import { z } from 'zod';
 
 export const generateSearchQuery = activeDriverProcedure
   .input(z.object({ query: z.string() }))
-  .mutation(async ({ input, ctx }) => {
-    const {
-      activeConnection: { providerId },
-    } = ctx;
-    const systemPrompt =
-      providerId === 'google'
-        ? GmailSearchAssistantSystemPrompt()
-        : providerId === 'microsoft'
-          ? OutlookSearchAssistantSystemPrompt()
-          : '';
+  .mutation(async ({ input }) => {
+    try {
+      const query = await generateOpenRouterText({
+        messages: [
+          {
+            role: 'system',
+            content: `${GmailSearchAssistantSystemPrompt()}\nReturn only the final search query with no explanation.`,
+          },
+          {
+            role: 'user',
+            content: input.query,
+          },
+        ],
+        maxTokens: 120,
+      });
 
-    const result = await generateObject({
-      model: openai(env.OPENAI_MODEL || 'gpt-4o'),
-      system: systemPrompt,
-      prompt: input.query,
-      schema: z.object({
-        query: z.string(),
-      }),
-      output: 'object',
-    });
-
-    return result.object;
+      return {
+        query: query.trim(),
+      };
+    } catch (error) {
+      console.error('[ai.generateSearchQuery] Falling back to raw query', error);
+      return {
+        query: input.query.trim(),
+      };
+    }
   });

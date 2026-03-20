@@ -1,20 +1,16 @@
-import {
-  getWritingStyleMatrixForConnectionId,
-  type WritingStyleMatrix,
-} from '../../../services/writing-style-service';
-import { escapeXml } from '../../../thread-workflow-utils/workflow-utils';
-import { StyledEmailAssistantSystemPrompt } from '../../../lib/prompts';
-import { webSearch } from '../../../routes/agent/tools';
+import { generateOpenRouterText } from '../../../lib/openrouter';
 import { activeConnectionProcedure } from '../../trpc';
-import { getPrompt } from '../../../lib/brain';
 import { stripHtml } from 'string-strip-html';
-import { EPrompts } from '../../../types';
-import { env } from '../../../env';
-import { openai } from '@ai-sdk/openai';
-import { generateText } from 'ai';
 import { z } from 'zod';
 
-type ComposeEmailInput = {
+export const composeEmail = async ({
+  prompt,
+  emailSubject,
+  to,
+  cc,
+  threadMessages = [],
+  username,
+}: {
   prompt: string;
   emailSubject?: string;
   to?: string[];
@@ -27,90 +23,44 @@ type ComposeEmailInput = {
     body: string;
   }>;
   username: string;
-  connectionId: string;
-};
+  connectionId?: string;
+}) => {
+  const threadContext = threadMessages
+    .map((message) =>
+      [
+        `From: ${message.from}`,
+        `To: ${message.to.join(', ')}`,
+        message.cc?.length ? `CC: ${message.cc.join(', ')}` : '',
+        `Subject: ${message.subject}`,
+        `Body: ${stripHtml(message.body).result}`,
+      ]
+        .filter(Boolean)
+        .join('\n'),
+    )
+    .join('\n\n');
 
-export async function composeEmail(input: ComposeEmailInput) {
-  const { prompt, threadMessages = [], cc, emailSubject, to, username, connectionId } = input;
-
-  const writingStyleMatrix = await getWritingStyleMatrixForConnectionId({
-    connectionId,
-  });
-
-  const systemPrompt = await getPrompt(
-    `${connectionId}-${EPrompts.Compose}`,
-    StyledEmailAssistantSystemPrompt(),
-  );
-  const userPrompt = EmailAssistantPrompt({
-    currentSubject: emailSubject,
-    recipients: [...(to ?? []), ...(cc ?? [])],
-    prompt,
-    username,
-    styleProfile: writingStyleMatrix?.style as WritingStyleMatrix,
-  });
-
-  const threadUserMessages = threadMessages.map((message) => ({
-    role: 'user' as const,
-    content: MessagePrompt({
-      ...message,
-      body: stripHtml(message.body).result,
-    }),
-  }));
-
-  const messages =
-    threadMessages.length > 0
-      ? [
-          {
-            role: 'user' as const,
-            content: "I'm going to give you the current email thread replies one by one.",
-          } as const,
-          {
-            role: 'assistant' as const,
-            content: 'Got it. Please proceed with the thread replies.',
-          } as const,
-          ...threadUserMessages,
-          {
-            role: 'assistant' as const,
-            content: 'Got it. Please proceed with the email composition prompt.',
-          },
-        ]
-      : [
-          {
-            role: 'user' as const,
-            content: 'Now, I will give you the prompt to write the email.',
-          },
-          {
-            role: 'assistant' as const,
-            content: 'Ok, please continue with the email composition prompt.',
-          },
-        ];
-
-  const { text } = await generateText({
-    model: openai(env.OPENAI_MINI_MODEL || 'gpt-4o-mini'),
+  return await generateOpenRouterText({
     messages: [
       {
         role: 'system',
-        content: systemPrompt,
+        content:
+          'Write a polished email reply in plain text or simple HTML. Return only the email body with no markdown fences.',
       },
-      ...messages,
       {
         role: 'user',
-        content: userPrompt,
+        content: EmailAssistantPrompt({
+          currentSubject: emailSubject,
+          recipients: [...(to ?? []), ...(cc ?? [])],
+          prompt,
+          username,
+          threadContext,
+        }),
       },
     ],
-    maxSteps: 10,
-    maxTokens: 2_000,
-    temperature: 0.35,
-    frequencyPenalty: 0.2,
-    presencePenalty: 0.1,
-    maxRetries: 1,
-    tools: {
-      webSearch: webSearch(),
-    },
+    temperature: 0.3,
+    maxTokens: 1200,
   });
-
-  return text;
-}
+};
 
 export const compose = activeConnectionProcedure
   .input(
@@ -134,12 +84,13 @@ export const compose = activeConnectionProcedure
     }),
   )
   .mutation(async ({ ctx, input }) => {
-    const { sessionUser, activeConnection } = ctx;
-
     const newBody = await composeEmail({
-      ...input,
-      username: sessionUser.name,
-      connectionId: activeConnection.id,
+      prompt: input.prompt,
+      emailSubject: input.emailSubject,
+      to: input.to,
+      cc: input.cc,
+      threadMessages: input.threadMessages,
+      username: ctx.sessionUser.name,
     });
 
     return { newBody };
@@ -151,140 +102,58 @@ export const generateEmailSubject = activeConnectionProcedure
       message: z.string(),
     }),
   )
-  .mutation(async ({ ctx, input }) => {
-    const { activeConnection } = ctx;
-    const { message } = input;
-
-    const writingStyleMatrix = await getWritingStyleMatrixForConnectionId({
-      connectionId: activeConnection.id,
+  .mutation(async ({ input }) => {
+    const subject = await generateOpenRouterText({
+      messages: [
+        {
+          role: 'system',
+          content: 'Write a concise email subject line. Return only the subject text.',
+        },
+        {
+          role: 'user',
+          content: input.message,
+        },
+      ],
+      maxTokens: 60,
     });
 
-    const subject = await generateSubject(message, writingStyleMatrix?.style as WritingStyleMatrix);
-
     return {
-      subject,
+      subject: subject.replace(/^subject:\s*/i, '').trim(),
     };
   });
-
-const MessagePrompt = ({
-  from,
-  to,
-  cc,
-  body,
-  subject,
-}: {
-  from: string;
-  to: string[];
-  cc?: string[];
-  body: string;
-  subject: string;
-}) => {
-  const parts: string[] = [];
-  parts.push(`From: ${from}`);
-  parts.push(`To: ${to.join(', ')}`);
-  if (cc && cc.length > 0) {
-    parts.push(`CC: ${cc.join(', ')}`);
-  }
-  parts.push(`Subject: ${subject}`);
-  parts.push('');
-  parts.push(`Body: ${body}`);
-
-  return parts.join('\n');
-};
 
 const EmailAssistantPrompt = ({
   currentSubject,
   recipients,
   prompt,
   username,
-  styleProfile,
+  threadContext,
 }: {
   currentSubject?: string;
   recipients?: string[];
   prompt: string;
   username: string;
-  styleProfile?: WritingStyleMatrix | null;
+  threadContext?: string;
 }) => {
   const parts: string[] = [];
 
-  parts.push('# Email Composition Task');
-  if (styleProfile) {
-    parts.push('## Style Profile');
-    parts.push(`\`\`\`json
-  ${JSON.stringify(styleProfile, null, 2)}
-  \`\`\``);
+  parts.push('Write an email for the user.');
+
+  if (currentSubject?.trim()) {
+    parts.push(`Current subject: ${currentSubject.trim()}`);
   }
 
-  parts.push('## Email Context');
-
-  if (currentSubject) {
-    parts.push('## The current subject is:');
-    parts.push(escapeXml(currentSubject));
-    parts.push('');
+  if (recipients?.length) {
+    parts.push(`Recipients: ${recipients.join(', ')}`);
   }
 
-  if (recipients && recipients.length > 0) {
-    parts.push('## The recipients are:');
-    parts.push(recipients.join('\n'));
-    parts.push('');
+  if (threadContext?.trim()) {
+    parts.push(`Thread context:\n${threadContext}`);
   }
 
-  parts.push(
-    '## This is a prompt from the user that could be empty, a rough email, or an instruction to write an email.',
-  );
-  parts.push(escapeXml(prompt));
-  parts.push('');
-
-  parts.push("##This is the user's name:");
-  parts.push(escapeXml(username));
-  parts.push('');
-
-  parts.push(
-    'Please write an email using this context and instruction. If there are previous messages in the thread use those for more context.',
-    'Make sure to examine all context in this conversation to ALWAYS generate some sort of reply.',
-    'Do not include ANYTHING other than the body of the email you write.',
-  );
+  parts.push(`User name: ${username}`);
+  parts.push(`Instruction:\n${prompt}`);
+  parts.push('Return only the body of the email.');
 
   return parts.join('\n\n');
-};
-
-const generateSubject = async (message: string, styleProfile?: WritingStyleMatrix | null) => {
-  const parts: string[] = [];
-
-  parts.push('# Email Subject Generation Task');
-  if (styleProfile) {
-    parts.push('## Style Profile');
-    parts.push(`\`\`\`json
-  ${JSON.stringify(styleProfile, null, 2)}
-  \`\`\``);
-  }
-
-  parts.push('## Email Content');
-  parts.push(escapeXml(message));
-  parts.push('');
-  parts.push(
-    'Generate a concise, clear subject line that summarizes the main point of the email. The subject should be professional and under 100 characters.',
-  );
-
-  const { text } = await generateText({
-    model: openai(env.OPENAI_MODEL || 'gpt-4o'),
-    messages: [
-      {
-        role: 'system',
-        content:
-          'You are an email subject line generator. Generate a concise, clear subject line that summarizes the main point of the email. The subject should be professional and under 100 characters.',
-      },
-      {
-        role: 'user',
-        content: parts.join('\n\n'),
-      },
-    ],
-    maxTokens: 50,
-    temperature: 0.3,
-    frequencyPenalty: 0.1,
-    presencePenalty: 0.1,
-    maxRetries: 1,
-  });
-
-  return text.trim();
 };
