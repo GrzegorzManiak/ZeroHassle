@@ -1,5 +1,18 @@
+import { existsSync } from 'node:fs';
+import { dirname, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { intro, select, isCancel, outro, log } from '@clack/prompts';
 import * as commands from './commands';
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const envCandidates = [resolve(process.cwd(), '.env'), resolve(__dirname, '../../../.env')];
+
+for (const envPath of envCandidates) {
+  if (existsSync(envPath)) {
+    process.loadEnvFile(envPath);
+    break;
+  }
+}
 
 let args = [];
 if (process.argv.slice(2).length === 0) {

@@ -1,11 +1,12 @@
 import { createAuthClient } from 'better-auth/client';
+import { twoFactorClient } from 'better-auth/client/plugins';
 
 const authClient = createAuthClient({
   baseURL: import.meta.env.VITE_PUBLIC_BACKEND_URL,
   fetchOptions: {
     credentials: 'include',
   },
-  plugins: [],
+  plugins: [twoFactorClient()],
 });
 
 export const authProxy = {

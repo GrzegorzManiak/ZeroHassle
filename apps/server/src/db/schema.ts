@@ -23,8 +23,7 @@ export const user = createTable('user', {
   updatedAt: timestamp('updated_at').notNull(),
   defaultConnectionId: text('default_connection_id'),
   customPrompt: text('custom_prompt'),
-  phoneNumber: text('phone_number').unique(),
-  phoneNumberVerified: boolean('phone_number_verified'),
+  twoFactorEnabled: boolean('two_factor_enabled').notNull().default(false),
 });
 
 export const session = createTable(
@@ -102,17 +101,17 @@ export const verification = createTable(
   ],
 );
 
-export const earlyAccess = createTable(
-  'early_access',
+export const twoFactor = createTable(
+  'two_factor',
   {
     id: text('id').primaryKey(),
-    email: text('email').notNull().unique(),
-    createdAt: timestamp('created_at').notNull(),
-    updatedAt: timestamp('updated_at').notNull(),
-    isEarlyAccess: boolean('is_early_access').notNull().default(false),
-    hasUsedTicket: text('has_used_ticket').default(''),
+    secret: text('secret').notNull(),
+    backupCodes: text('backup_codes').notNull(),
+    userId: text('user_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
   },
-  (t) => [index('early_access_is_early_access_idx').on(t.isEarlyAccess)],
+  (t) => [index('two_factor_user_id_idx').on(t.userId)],
 );
 
 export const connection = createTable(
@@ -128,7 +127,7 @@ export const connection = createTable(
     accessToken: text('access_token'),
     refreshToken: text('refresh_token'),
     scope: text('scope').notNull(),
-    providerId: text('provider_id').$type<'google' | 'microsoft'>().notNull(),
+    providerId: text('provider_id').$type<'google' | 'microsoft' | 'zerohassle-dev'>().notNull(),
     expiresAt: timestamp('expires_at').notNull(),
     createdAt: timestamp('created_at').notNull(),
     updatedAt: timestamp('updated_at').notNull(),

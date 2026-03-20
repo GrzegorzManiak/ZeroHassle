@@ -1,98 +1,85 @@
-import {
-  AIWritingAssistantEmail,
-  AutoLabelingEmail,
-  CategoriesEmail,
-  Mail0ProEmail,
-  ShortcutsEmail,
-  SuperSearchEmail,
-  WelcomeEmail,
-} from './react-emails/email-sequences';
-import { createAuthMiddleware, phoneNumber, jwt, bearer, mcp } from 'better-auth/plugins';
+import { ensureDefaultUserSettings } from './local-accounts';
+import { ensureLocalMailbox } from './local-mailbox';
+import { createAuthMiddleware, jwt, bearer, twoFactor } from 'better-auth/plugins';
 import { type Account, betterAuth, type BetterAuthOptions } from 'better-auth';
 import { getBrowserTimezone, isValidTimezone } from './timezones';
 import { drizzleAdapter } from 'better-auth/adapters/drizzle';
+import { createDb } from '../db';
 import { getZeroDB, resetConnection } from './server-utils';
 import { getSocialProviders } from './auth-providers';
-import { redis, resend, twilio } from './services';
-import { dubAnalytics } from '@dub/better-auth';
-import { defaultUserSettings } from './schemas';
-import { disableBrainFunction } from './brain';
+import { redis } from './services';
 import { APIError } from 'better-auth/api';
 import { type EProviders } from '../types';
 import { createDriver } from './driver';
-import { Autumn } from 'autumn-js';
-import { createDb } from '../db';
-import { Effect } from 'effect';
 import { env } from '../env';
-import { Dub } from 'dub';
 
-const scheduleCampaign = (userInfo: { address: string; name: string }) =>
-  Effect.gen(function* () {
-    const name = userInfo.name || 'there';
-    const resendService = resend();
+const LOCAL_DEV_HOSTNAMES = new Set(['localhost', '127.0.0.1']);
 
-    const sendEmail = (subject: string, react: unknown, scheduledAt?: string) =>
-      Effect.promise(() =>
-        resendService.emails
-          .send({
-            from: '0.email <onboarding@0.email>',
-            to: userInfo.address,
-            subject,
-            react: react as any,
-            ...(scheduledAt && { scheduledAt }),
-          })
-          .then(() => void 0),
-      );
+const normalizeOrigin = (value?: string | null) => {
+  if (!value) {
+    return null;
+  }
 
-    const emails = [
-      {
-        subject: 'Welcome to 0.email',
-        react: WelcomeEmail({ name }),
-        scheduledAt: undefined,
-      },
-      {
-        subject: 'Mail0 Pro is here 🚀💼',
-        react: Mail0ProEmail({ name }),
-        scheduledAt: 'in 1 day',
-      },
-      {
-        subject: 'Auto-labeling is here 🎉📥',
-        react: AutoLabelingEmail({ name }),
-        scheduledAt: 'in 2 days',
-      },
-      {
-        subject: 'AI Writing Assistant is here 🤖💬',
-        react: AIWritingAssistantEmail({ name }),
-        scheduledAt: 'in 3 days',
-      },
-      {
-        subject: 'Shortcuts are here 🔧🚀',
-        react: ShortcutsEmail({ name }),
-        scheduledAt: 'in 4 days',
-      },
-      {
-        subject: 'Categories are here 📂🔍',
-        react: CategoriesEmail({ name }),
-        scheduledAt: 'in 5 days',
-      },
-      {
-        subject: 'Super Search is here 🔍🚀',
-        react: SuperSearchEmail({ name }),
-        scheduledAt: 'in 6 days',
-      },
-    ];
+  try {
+    return new URL(value).origin;
+  } catch {
+    return null;
+  }
+};
 
-    yield* Effect.all(
-      emails.map((email) => sendEmail(email.subject, email.react, email.scheduledAt)),
-      { concurrency: 'unbounded' },
-    );
-  });
+const isLocalDevOrigin = (value: string) => {
+  try {
+    const url = new URL(value);
+    return url.protocol === 'http:' && LOCAL_DEV_HOSTNAMES.has(url.hostname);
+  } catch {
+    return false;
+  }
+};
+
+const getRequestOrigins = (request?: Request) => {
+  if (!request || env.NODE_ENV === 'production') {
+    return [];
+  }
+
+  return [request.headers.get('origin'), request.headers.get('referer')]
+    .map((value) => normalizeOrigin(value))
+    .filter((value): value is string => Boolean(value))
+    .filter(isLocalDevOrigin);
+};
+
+const buildTrustedOrigins = (request?: Request) => {
+  const configuredOrigins = [
+    env.VITE_PUBLIC_APP_URL,
+    env.VITE_PUBLIC_BACKEND_URL,
+    env.BETTER_AUTH_URL,
+    env.BETTER_AUTH_TRUSTED_ORIGINS,
+    'https://app.0.email',
+    'https://sapi.0.email',
+    'https://staging.0.email',
+    'https://0.email',
+    'http://localhost:3000',
+    'http://127.0.0.1:3000',
+    'http://localhost:3001',
+    'http://127.0.0.1:3001',
+    'http://localhost:8787',
+    'http://127.0.0.1:8787',
+  ]
+    .flatMap((value) => value?.split(',') ?? [])
+    .map((value) => value.trim())
+    .filter(Boolean);
+
+  return [...new Set([...configuredOrigins, ...getRequestOrigins(request)])];
+};
 
 const connectionHandlerHook = async (account: Account) => {
+  if (account.providerId !== 'google') {
+    return;
+  }
+
   if (!account.accessToken || !account.refreshToken) {
     console.error('Missing Access/Refresh Tokens', { account });
     throw new APIError('EXPECTATION_FAILED', {
-      message: 'Missing Access/Refresh Tokens, contact us on Discord for support',
+      message: 'Missing Access/Refresh Tokens',
     });
   }
 
@@ -143,12 +130,6 @@ const connectionHandlerHook = async (account: Account) => {
     updatingInfo,
   );
 
-  if (env.NODE_ENV === 'production') {
-    await Effect.runPromise(
-      scheduleCampaign({ address: userInfo.address, name: userInfo.name || 'there' }),
-    );
-  }
-
   if (env.GOOGLE_S_ACCOUNT && env.GOOGLE_S_ACCOUNT !== '{}') {
     await env.subscribe_queue.send({
       connectionId: result.id,
@@ -158,69 +139,29 @@ const connectionHandlerHook = async (account: Account) => {
 };
 
 export const createAuth = () => {
-  const twilioClient = twilio();
-  const dub = new Dub();
-
   return betterAuth({
     plugins: [
-      dubAnalytics({
-        dubClient: dub,
-      }),
-      mcp({
-        loginPage: env.VITE_PUBLIC_APP_URL + '/login',
-      }),
       jwt(),
       bearer(),
-      phoneNumber({
-        sendOTP: async ({ code, phoneNumber }) => {
-          await twilioClient.messages
-            .send(phoneNumber, `Your verification code is: ${code}, do not share it with anyone.`)
-            .catch((error) => {
-              console.error('Failed to send OTP', error);
-              throw new APIError('INTERNAL_SERVER_ERROR', {
-                message: `Failed to send OTP, ${error.message}`,
-              });
-            });
+      twoFactor({
+        issuer: 'ZeroHassle',
+        totpOptions: {
+          digits: 6,
+          period: 30,
         },
       }),
     ],
     user: {
       deleteUser: {
-        enabled: true,
-        async sendDeleteAccountVerification(data) {
-          const verificationUrl = data.url;
-
-          await resend().emails.send({
-            from: '0.email <no-reply@0.email>',
-            to: data.user.email,
-            subject: 'Delete your 0.email account',
-            html: `
-            <h2>Delete Your 0.email Account</h2>
-            <p>Click the link below to delete your account:</p>
-            <a href="${verificationUrl}">${verificationUrl}</a>
-          `,
-          });
-        },
-        beforeDelete: async (user, request) => {
-          if (!request) throw new APIError('BAD_REQUEST', { message: 'Request object is missing' });
+        enabled: false,
+        beforeDelete: async (user) => {
           const db = await getZeroDB(user.id);
           const connections = await db.findManyConnections();
-          const autumn = new Autumn({ secretKey: env.AUTUMN_SECRET_KEY });
-          try {
-            await autumn.customers.delete(user.id);
-          } catch (error) {
-            console.error('Failed to delete Autumn customer:', error);
-            // Continue with deletion process despite Autumn failure
-          }
 
           const revokedAccounts = (
             await Promise.allSettled(
               connections.map(async (connection) => {
                 if (!connection.accessToken || !connection.refreshToken) return false;
-                await disableBrainFunction({
-                  id: connection.id,
-                  providerId: connection.providerId as EProviders,
-                });
                 const driver = createDriver(connection.providerId, {
                   auth: {
                     accessToken: connection.accessToken,
@@ -240,7 +181,7 @@ export const createAuth = () => {
             return false;
           });
 
-          if (revokedAccounts.every((value) => !!value)) {
+          if (!revokedAccounts.every((value) => !!value)) {
             console.log('Failed to revoke some accounts');
           }
 
@@ -259,66 +200,39 @@ export const createAuth = () => {
       },
     },
     emailAndPassword: {
-      enabled: false,
-      requireEmailVerification: true,
-      sendResetPassword: async ({ user, url }) => {
-        await resend().emails.send({
-          from: '0.email <onboarding@0.email>',
-          to: user.email,
-          subject: 'Reset your password',
-          html: `
-            <h2>Reset Your Password</h2>
-            <p>Click the link below to reset your password:</p>
-            <a href="${url}">${url}</a>
-            <p>If you didn't request this, you can safely ignore this email.</p>
-          `,
-        });
-      },
+      enabled: true,
+      requireEmailVerification: false,
+      autoSignIn: true,
     },
     emailVerification: {
       sendOnSignUp: false,
-      autoSignInAfterVerification: true,
-      sendVerificationEmail: async ({ user, token }) => {
-        const verificationUrl = `${env.VITE_PUBLIC_APP_URL}/api/auth/verify-email?token=${token}&callbackURL=/settings/connections`;
-
-        await resend().emails.send({
-          from: '0.email <onboarding@0.email>',
-          to: user.email,
-          subject: 'Verify your 0.email account',
-          html: `
-            <h2>Verify Your 0.email Account</h2>
-            <p>Click the link below to verify your email:</p>
-            <a href="${verificationUrl}">${verificationUrl}</a>
-          `,
-        });
-      },
+      autoSignInAfterVerification: false,
     },
     hooks: {
       after: createAuthMiddleware(async (ctx) => {
-        // all hooks that run on sign-up routes
-        if (ctx.path.startsWith('/sign-up')) {
-          // only true if this request is from a new user
-          const newSession = ctx.context.newSession;
-          if (newSession) {
-            // Check if user already has settings
-            const db = await getZeroDB(newSession.user.id);
-            const existingSettings = await db.findUserSettings();
+        const newSession = ctx.context.newSession;
+        if (!newSession) {
+          return;
+        }
 
-            if (!existingSettings) {
-              // get timezone from vercel's header
-              const headerTimezone = ctx.headers?.get('x-vercel-ip-timezone');
-              // validate timezone from header or fallback to browser timezone
-              const timezone =
-                headerTimezone && isValidTimezone(headerTimezone)
-                  ? headerTimezone
-                  : getBrowserTimezone();
-              // write default settings against the user
-              await db.insertUserSettings({
-                ...defaultUserSettings,
-                timezone,
-              });
-            }
-          }
+        const { db } = createDb(env.HYPERDRIVE.connectionString);
+        const headerTimezone = ctx.headers?.get('x-vercel-ip-timezone');
+        const timezone =
+          headerTimezone && isValidTimezone(headerTimezone)
+            ? headerTimezone
+            : getBrowserTimezone();
+
+        await ensureDefaultUserSettings(db, newSession.user.id, timezone);
+
+        const shouldCreateLocalMailbox =
+          !env.GOOGLE_CLIENT_ID || !env.GOOGLE_CLIENT_SECRET || env.NODE_ENV === 'local';
+
+        if (shouldCreateLocalMailbox) {
+          await ensureLocalMailbox({
+            db,
+            userId: newSession.user.id,
+            name: newSession.user.name,
+          });
         }
       }),
     },
@@ -355,13 +269,7 @@ const createAuthConfig = () => {
       },
     },
     baseURL: env.VITE_PUBLIC_BACKEND_URL,
-    trustedOrigins: [
-      'https://app.0.email',
-      'https://sapi.0.email',
-      'https://staging.0.email',
-      'https://0.email',
-      'http://localhost:3000',
-    ],
+    trustedOrigins: (request) => buildTrustedOrigins(request),
     session: {
       cookieCache: {
         enabled: true,
@@ -374,8 +282,8 @@ const createAuthConfig = () => {
     account: {
       accountLinking: {
         enabled: true,
-        allowDifferentEmails: true,
-        trustedProviders: ['google', 'microsoft'],
+        allowDifferentEmails: false,
+        trustedProviders: ['google'],
       },
     },
     onAPIError: {
