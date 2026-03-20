@@ -16,7 +16,7 @@ import { useConnections } from '@/hooks/use-connections';
 import { useTRPC } from '@/providers/query-provider';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useMutation } from '@tanstack/react-query';
-import { Trash, Plus, Unplug } from 'lucide-react';
+import { Trash, Plus, Unplug, TerminalSquare } from 'lucide-react';
 import { useThreads } from '@/hooks/use-threads';
 import { useBilling } from '@/hooks/use-billing';
 import { emailProviders } from '@/lib/constants';
@@ -81,9 +81,10 @@ export default function ConnectionsPage() {
           ) : data?.connections?.length ? (
             <div className="lg: grid gap-4 sm:grid-cols-1 md:grid-cols-2">
               {data.connections.map((connection) => {
-                const Icon = emailProviders.find(
-                  (p) => p.providerId === connection.providerId,
-                )?.icon;
+                let Icon = emailProviders.find((p) => p.providerId === connection.providerId)?.icon;
+                if (connection.providerId === 'zerohassle-dev') {
+                  Icon = TerminalSquare;
+                }
                 return (
                   <div
                     key={connection.id}
@@ -104,7 +105,14 @@ export default function ConnectionsPage() {
                         </div>
                       )}
                       <div className="flex min-w-0 flex-col gap-1">
-                        <span className="truncate text-sm font-medium">{connection.name}</span>
+                        <span className="truncate text-sm font-medium">
+                          {connection.name}
+                          {connection.providerId === 'zerohassle-dev' && (
+                            <Badge variant="outline" className="ml-2">
+                              Dev Connector
+                            </Badge>
+                          )}
+                        </span>
                         <div className="text-muted-foreground flex items-center gap-2 text-xs">
                           <Tooltip
                             delayDuration={0}
@@ -137,7 +145,7 @@ export default function ConnectionsPage() {
                       </div>
                     </div>
                     <div className="flex items-center gap-4">
-                      {data.disconnectedIds?.includes(connection.id) ? (
+                      {data.disconnectedIds?.includes(connection.id) && connection.providerId !== 'zerohassle-dev' ? (
                         <>
                           <div>
                             <Badge variant="destructive">

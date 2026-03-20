@@ -57,6 +57,7 @@ import { ToolOrchestrator } from './orchestrator';
 import { eq, desc, isNotNull } from 'drizzle-orm';
 import migrations from './db/drizzle/migrations';
 import { getPromptName } from '../../pipelines';
+import { isLocalMailboxScope } from '../../lib/local-mailbox';
 import { anthropic } from '@ai-sdk/anthropic';
 import { connection } from '../../db/schema';
 import type { WSMessage } from 'partyserver';
@@ -395,6 +396,10 @@ export class ZeroDriver extends DurableObject<ZeroEnv> {
     return this.ctx.storage.sql.databaseSize;
   }
 
+  private isLocalMailboxConnection() {
+    return isLocalMailboxScope(this.connection?.scope);
+  }
+
   async isSyncing(): Promise<boolean> {
     return false;
   }
@@ -629,6 +634,10 @@ export class ZeroDriver extends DurableObject<ZeroEnv> {
   }
 
   async normalizeIds(ids: string[]) {
+    if (this.isLocalMailboxConnection()) {
+      return { threadIds: ids };
+    }
+
     if (!this.driver) {
       throw new Error('No driver available');
     }
@@ -636,6 +645,10 @@ export class ZeroDriver extends DurableObject<ZeroEnv> {
   }
 
   async sendDraft(id: string, data: IOutgoingMessage) {
+    if (this.isLocalMailboxConnection()) {
+      return;
+    }
+
     if (!this.driver) {
       throw new Error('No driver available');
     }
@@ -645,6 +658,10 @@ export class ZeroDriver extends DurableObject<ZeroEnv> {
   }
 
   async create(data: IOutgoingMessage) {
+    if (this.isLocalMailboxConnection()) {
+      return { id: crypto.randomUUID() };
+    }
+
     if (!this.driver) {
       throw new Error('No driver available');
     }
@@ -665,6 +682,16 @@ export class ZeroDriver extends DurableObject<ZeroEnv> {
   }
 
   async getEmailAliases() {
+    if (this.isLocalMailboxConnection()) {
+      return [
+        {
+          email: this.connection?.email ?? 'local@zerohassle.local',
+          name: this.connection?.name ?? 'Local mailbox',
+          primary: true,
+        },
+      ];
+    }
+
     if (!this.driver) {
       throw new Error('No driver available');
     }
@@ -672,6 +699,10 @@ export class ZeroDriver extends DurableObject<ZeroEnv> {
   }
 
   async getMessageAttachments(messageId: string) {
+    if (this.isLocalMailboxConnection()) {
+      return [];
+    }
+
     if (!this.driver) {
       throw new Error('No driver available');
     }
@@ -697,6 +728,148 @@ export class ZeroDriver extends DurableObject<ZeroEnv> {
     this.dropTables();
     this.createTables();
     await this.syncFolders();
+  }
+
+  async seedLocalMailbox({
+    ownerEmail,
+    ownerName,
+  }: {
+    ownerEmail: string;
+    ownerName?: string;
+  }) {
+    if (!this.isLocalMailboxConnection()) {
+      return { seeded: false, reason: 'not-local-mailbox' };
+    }
+
+    const existingCount = await this.getThreadCount();
+    if (existingCount > 0) {
+      return { seeded: false, reason: 'already-seeded', count: existingCount };
+    }
+
+    const now = Date.now();
+    const fixtures = [
+      {
+        threadId: 'thread-local-invoice',
+        subject: 'March invoice for ZeroHassle',
+        sender: { name: 'Billing Bot', email: 'billing@example.com' },
+        labels: ['INBOX', 'UNREAD', 'STARRED'],
+        ageDays: 2,
+        body:
+          'Attached is your March invoice. The amount due is 42 EUR and the due date is next Friday.',
+        attachments: [
+          {
+            attachmentId: 'att-invoice-1',
+            filename: 'invoice-march.pdf',
+            mimeType: 'application/pdf',
+            size: 1024,
+            body: 'JVBERi0xLjQK',
+            headers: [],
+          },
+        ],
+      },
+      {
+        threadId: 'thread-local-project',
+        subject: 'Project timeline update',
+        sender: { name: 'Alicia', email: 'alicia@example.com' },
+        labels: ['INBOX', 'UNREAD', 'IMPORTANT'],
+        ageDays: 1,
+        body:
+          'The timeline has been moved up. Please review the updated milestones before tomorrow afternoon.',
+      },
+      {
+        threadId: 'thread-local-receipt',
+        subject: 'Receipt for your domain renewal',
+        sender: { name: 'Registrar', email: 'receipts@example.com' },
+        labels: ['INBOX'],
+        ageDays: 4,
+        body:
+          'Your domain renewal is complete. This receipt confirms the charge and the next renewal date.',
+      },
+      {
+        threadId: 'thread-local-newsletter',
+        subject: 'Weekly product digest',
+        sender: { name: 'Product Digest', email: 'digest@example.com' },
+        labels: ['INBOX'],
+        ageDays: 6,
+        body:
+          'Here is the weekly digest covering the latest product changes, release notes, and roadmap updates.',
+      },
+      {
+        threadId: 'thread-local-meeting',
+        subject: 'Meeting notes and next steps',
+        sender: { name: 'Jordan', email: 'jordan@example.com' },
+        labels: ['INBOX'],
+        ageDays: 3,
+        body:
+          'Thanks for joining the meeting today. Next steps are to finalize the copy and confirm the launch checklist.',
+      },
+    ];
+
+    await Promise.all(
+      fixtures.map(async (fixture, index) => {
+        const receivedOn = new Date(now - fixture.ageDays * 24 * 60 * 60 * 1000 - index * 60000)
+          .toISOString();
+        const messageId = `${fixture.threadId}-message-1`;
+        const htmlBody = `<p>${fixture.body}</p>`;
+        const message: ParsedMessage = {
+          id: messageId,
+          connectionId: this.connection?.id,
+          title: fixture.subject,
+          subject: fixture.subject,
+          tags: fixture.labels.map((labelId) => ({
+            id: labelId,
+            name: labelId,
+            type: 'system',
+          })),
+          sender: fixture.sender,
+          to: [{ name: ownerName, email: ownerEmail }],
+          cc: null,
+          bcc: null,
+          tls: true,
+          receivedOn,
+          unread: fixture.labels.includes('UNREAD'),
+          body: fixture.body,
+          processedHtml: htmlBody,
+          blobUrl: '',
+          decodedBody: htmlBody,
+          threadId: fixture.threadId,
+          messageId: `<${messageId}@zerohassle.local>`,
+          attachments: fixture.attachments,
+        };
+
+        await create(
+          this.db,
+          {
+            id: fixture.threadId,
+            threadId: fixture.threadId,
+            providerId: 'zerohassle-dev',
+            latestSender: fixture.sender,
+            latestReceivedOn: receivedOn,
+            latestSubject: fixture.subject,
+          },
+          fixture.labels,
+        );
+
+        await this.env.THREADS_BUCKET.put(
+          this.getThreadKey(fixture.threadId),
+          JSON.stringify({
+            messages: [message],
+            latest: message,
+            hasUnread: fixture.labels.includes('UNREAD'),
+            totalReplies: 1,
+            labels: fixture.labels.map((labelId) => ({
+              id: labelId,
+              name: labelId,
+            })),
+          }),
+        );
+      }),
+    );
+
+    this.invalidateRecipientCache();
+    await this.reloadFolder('inbox');
+
+    return { seeded: true, count: fixtures.length };
   }
 
   public async setupAuth() {
@@ -744,6 +917,15 @@ export class ZeroDriver extends DurableObject<ZeroEnv> {
     labelIds?: string[];
     pageToken?: string;
   }): Promise<IGetThreadsResponse> {
+    if (this.isLocalMailboxConnection()) {
+      return await this.getThreadsFromDB({
+        folder: params.folder,
+        maxResults: params.maxResults,
+        pageToken: params.pageToken,
+        labelIds: params.labelIds,
+      });
+    }
+
     if (!this.driver) {
       throw new Error('No driver available');
     }
@@ -1509,6 +1691,10 @@ export class ZeroDriver extends DurableObject<ZeroEnv> {
   }
 
   async get(id: string) {
+    if (this.isLocalMailboxConnection()) {
+      return await this.getThreadFromDB(id);
+    }
+
     if (!this.driver) {
       throw new Error('No driver available');
     }

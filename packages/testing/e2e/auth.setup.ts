@@ -1,77 +1,113 @@
-import { test as setup } from '@playwright/test';
+import { createLocalUser, resetLocalUserTwoFactor, setLocalPassword } from '@zero/server/local-accounts';
+import { createHmac } from 'crypto';
+import { test as setup, expect } from '@playwright/test';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const authFile = path.join(__dirname, '../playwright/.auth/user.json');
 
-setup('inject real authentication session', async ({ page }) => {
-  console.log('Injecting real authentication session...');
-  
-  const SessionToken = process.env.PLAYWRIGHT_SESSION_TOKEN;
-  const SessionData = process.env.PLAYWRIGHT_SESSION_DATA;
+const decodeBase32 = (input: string) => {
+  const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
+  const normalized = input.replace(/=+$/g, '').replace(/\s+/g, '').toUpperCase();
+  let bits = '';
 
-  if (!SessionToken || !SessionData) {
-    throw new Error('PLAYWRIGHT_SESSION_TOKEN and PLAYWRIGHT_SESSION_DATA environment variables must be set.');
+  for (const char of normalized) {
+    const value = alphabet.indexOf(char);
+    if (value === -1) {
+      throw new Error(`Invalid base32 character: ${char}`);
+    }
+    bits += value.toString(2).padStart(5, '0');
   }
 
-  await page.goto('/', { waitUntil: 'domcontentloaded', timeout: 60000 });
-  
-  console.log('Page loaded, setting up authentication...');
+  const bytes: number[] = [];
+  for (let index = 0; index + 8 <= bits.length; index += 8) {
+    bytes.push(Number.parseInt(bits.slice(index, index + 8), 2));
+  }
 
-  // sets better auth session cookies
-  await page.context().addCookies([
-    {
-      name: 'better-auth-dev.session_token',
-      value: SessionToken,
-      domain: 'localhost',
-      path: '/',
-      httpOnly: true,
-      secure: false,
-      sameSite: 'Lax'
-    },
-    {
-      name: 'better-auth-dev.session_data',
-      value: SessionData,
-      domain: 'localhost', 
-      path: '/',
-      httpOnly: true,
-      secure: false,
-      sameSite: 'Lax'
-    }
-  ]);
+  return Buffer.from(bytes);
+};
 
-  console.log('Real session cookies injected');
+const generateTotpCode = (totpUri: string) => {
+  const parsed = new URL(totpUri);
+  const secret = parsed.searchParams.get('secret');
+
+  if (!secret) {
+    throw new Error('TOTP URI is missing a secret');
+  }
+
+  const digits = Number.parseInt(parsed.searchParams.get('digits') ?? '6', 10);
+  const period = Number.parseInt(parsed.searchParams.get('period') ?? '30', 10);
+  const algorithm = (parsed.searchParams.get('algorithm') ?? 'SHA1').toLowerCase();
+  const counter = Math.floor(Date.now() / 1000 / period);
+  const buffer = Buffer.alloc(8);
+  buffer.writeBigUInt64BE(BigInt(counter));
+
+  const hmac = createHmac(algorithm, decodeBase32(secret)).update(buffer).digest();
+  const offset = hmac[hmac.length - 1] & 0x0f;
+  const binary =
+    ((hmac[offset] & 0x7f) << 24) |
+    ((hmac[offset + 1] & 0xff) << 16) |
+    ((hmac[offset + 2] & 0xff) << 8) |
+    (hmac[offset + 3] & 0xff);
+
+  return String(binary % 10 ** digits).padStart(digits, '0');
+};
+
+setup('sign in with local credentials and enroll TOTP', async ({ page }) => {
+  const email = process.env.PLAYWRIGHT_EMAIL ?? process.env.EMAIL;
+  const password = process.env.PLAYWRIGHT_PASSWORD ?? 'ZeroHassle123!';
+
+  if (!email) {
+    throw new Error('PLAYWRIGHT_EMAIL or EMAIL must be set.');
+  }
 
   try {
-    const decodedSessionData = JSON.parse(atob(SessionData));
-    
-    await page.addInitScript((sessionData) => {
-      if (sessionData.session) {
-        localStorage.setItem('better-auth.session', JSON.stringify(sessionData.session.session));
-        localStorage.setItem('better-auth.user', JSON.stringify(sessionData.session.user));
-      }
-    }, decodedSessionData);
-
-    console.log('Session data set in localStorage');
+    await setLocalPassword({ email, password });
   } catch (error) {
-    console.log('Could not decode session data for localStorage:', error);
+    const message = error instanceof Error ? error.message : String(error);
+
+    if (message.includes('User not found')) {
+      await createLocalUser({
+        email,
+        password,
+        name: 'Playwright User',
+      });
+    } else {
+      throw error;
+    }
   }
 
-  await page.goto('/mail/inbox');
-  await page.waitForLoadState('domcontentloaded');
-  
-  const currentUrl = page.url();
-  console.log('Current URL after clicking Get Started:', currentUrl);
+  await resetLocalUserTwoFactor({ email });
 
-  if (currentUrl.includes('/mail')) {
-    console.log('Successfully reached mail app! On:', currentUrl);
-  } else {
-    console.log('Did not reach mail app. Current URL:', currentUrl);
-    await page.screenshot({ path: 'debug-auth-failed.png' });
+  await page.goto('/login');
+  await page.getByLabel('Email').fill(email);
+  await page.getByLabel('Password').fill(password);
+  await page.getByRole('button', { name: 'Sign in' }).click();
+
+  await expect(page).toHaveURL(/\/setup-2fa$/);
+
+  await page.getByLabel('Current password').fill(password);
+  await page.getByRole('button', { name: 'Generate authenticator secret' }).click();
+
+  const setupBox = page.getByTestId('totp-setup');
+  await expect(setupBox).toBeVisible();
+
+  await page.getByRole('button', { name: 'Show manual setup details' }).click();
+
+  const manualSetupBox = page.getByTestId('totp-manual-setup');
+  await expect(manualSetupBox).toBeVisible();
+
+  const totpUri = await manualSetupBox.getAttribute('data-totp-uri');
+
+  if (!totpUri) {
+    throw new Error('TOTP setup URI was not rendered');
   }
+
+  await page.getByLabel('Verification code').fill(generateTotpCode(totpUri));
+  await page.getByRole('button', { name: 'Enable TOTP' }).click();
+
+  await expect(page).toHaveURL(/\/mail\/inbox/);
 
   await page.context().storageState({ path: authFile });
-  
-  console.log('Real authentication session injected and saved!');
 });
