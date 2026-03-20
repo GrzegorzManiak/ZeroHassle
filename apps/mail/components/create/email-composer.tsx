@@ -337,9 +337,21 @@ export function EmailComposer({
       if (isLoading || isSavingDraft) return;
 
       const values = getValues();
+      let toRecipients = values.to;
+
+      if ((!toRecipients || toRecipients.length === 0) && typeof document !== 'undefined') {
+        const pendingRecipient = (
+          document.querySelector('input[placeholder="Enter email address"]') as HTMLInputElement | null
+        )?.value?.trim();
+
+        if (pendingRecipient && schema.shape.to.element.safeParse(pendingRecipient).success) {
+          toRecipients = [pendingRecipient];
+          setValue('to', toRecipients, { shouldDirty: true });
+        }
+      }
 
       // Validate recipient field
-      if (!values.to || values.to.length === 0) {
+      if (!toRecipients || toRecipients.length === 0) {
         toast.error('Recipient is required');
         return;
       }
@@ -355,7 +367,7 @@ export function EmailComposer({
       if (hasUnsavedChanges) await saveDraft();
 
       await onSendEmail({
-        to: values.to,
+        to: toRecipients,
         cc: showCc ? values.cc : undefined,
         bcc: showBcc ? values.bcc : undefined,
         subject: values.subject,
@@ -368,6 +380,7 @@ export function EmailComposer({
       editor.commands.clearContent(true);
       form.reset();
       setIsComposeOpen(null);
+      onClose?.();
     } catch (error) {
       console.error('Error sending email:', error);
       toast.error('Failed to send email');

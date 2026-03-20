@@ -195,7 +195,7 @@ function ComposeButton() {
     setMode(null);
   };
   return (
-    <Dialog open={!!dialogOpen} onOpenChange={handleOpenChange}>
+    <Dialog open={dialogOpen === 'true'} onOpenChange={handleOpenChange}>
       <DialogTitle></DialogTitle>
       <DialogDescription></DialogDescription>
 

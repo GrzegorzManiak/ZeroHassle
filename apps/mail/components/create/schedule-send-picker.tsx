@@ -110,13 +110,13 @@ export const ScheduleSendPicker: React.FC<ScheduleSendPickerProps> = ({
   };
 
   const triggerLabel = (() => {
-    if (!selectedDate) return 'Send later';
+    if (!selectedDate) return 'Schedule';
     try {
       const formattedTime = formatTime12Hour(time);
       const formattedDate = format(selectedDate, 'dd MMM yyyy');
       return `${formattedDate} ${formattedTime}`;
     } catch {
-      return 'Send later';
+      return 'Schedule';
     }
   })();
 

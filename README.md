@@ -5,262 +5,142 @@
   </picture>
 </p>
 
-# Zero
+# ZeroHassle
 
-An Open-Source Gmail Alternative for the Future of Email
+A self-hostable, AI-assisted email client for personal use.
 
-## What is Zero?
+This fork aims to keep the useful parts of Zero and strip out the SaaS overhead. The goal is simple: run your own email client with local accounts, Gmail integration, and practical AI features without wiring up a dozen paid services, dashboards, phone providers, billing systems, or analytics tools.
 
-Zero is an open-source AI email solution that gives users the power to **self-host** their own email app while also integrating external services like Gmail and other email providers. Our goal is to modernize and improve emails through AI agents to truly modernize emails.
+## What This Project Is Trying To Do
 
-## Why Zero?
+ZeroHassle is built for people who want:
 
-Most email services today are either **closed-source**, **data-hungry**, or **too complex to self-host**.
-0.email is different:
+- a clean self-hosted email client
+- local login with password + TOTP
+- Gmail linking when needed
+- AI summaries, compose help, search help, and sidebar chat
+- one LLM provider instead of provider sprawl
+- a setup you can understand and host yourself
 
-- ✅ **Open-Source** – No hidden agendas, fully transparent.
-- 🦾 **AI Driven** - Enhance your emails with Agents & LLMs.
-- 🔒 **Data Privacy First** – Your emails, your data. Zero does not track, collect, or sell your data in any way. Please note: while we integrate with external services, the data passed through them is not under our control and falls under their respective privacy policies and terms of service.
-- ⚙️ **Self-Hosting Freedom** – Run your own email app with ease.
-- 📬 **Unified Inbox** – Connect multiple email providers like Gmail, Outlook, and more.
-- 🎨 **Customizable UI & Features** – Tailor your email experience the way you want it.
-- 🚀 **Developer-Friendly** – Built with extensibility and integrations in mind.
+ZeroHassle is intentionally **not** a public SaaS product. There is no public sign-up flow. Accounts are created locally through the CLI, which makes it suitable for personal or small trusted deployments.
 
-## Tech Stack
+## Key Behavior
 
-Zero is built with modern and reliable technologies:
+- Local accounts only. Public registration, forgot password, and self-service account deletion are disabled.
+- Multiple accounts are supported, but they must be created by an operator with the CLI.
+- TOTP is required. A newly created account must enroll on first login.
+- AI uses **OpenRouter** only.
+- Gmail is optional. If Google OAuth is not configured, the app still runs locally, but real Gmail linking is unavailable.
 
-- **Frontend**: React Router, React, TypeScript, TailwindCSS, Shadcn UI
-- **Backend**: Cloudflare Workers, Hono, Drizzle ORM
-- **Database**: PostgreSQL
-- **Cache / Queues (local dev)**: Valkey + Upstash-compatible Redis HTTP proxy
-- **Authentication**: Better Auth, Google OAuth
-<!-- - **Testing**: Jest, React Testing Library -->
+## Stack
 
-## Getting Started
+- Frontend: React Router, React, TypeScript, TailwindCSS, shadcn/ui
+- Backend: Cloudflare Workers, Hono, Drizzle ORM
+- Database: PostgreSQL
+- Cache and local queue support: Valkey + Upstash-compatible Redis HTTP proxy
+- Auth: Better Auth with email/password + TOTP
+- AI: OpenRouter
+- Runtime package manager: Bun
 
-### Video Tutorial
-
-Watch this helpful video tutorial on how to set up Zero locally:
-
-<p align="center">
-  <a href="https://www.youtube.com/watch?v=yIXLQcjbeEM">
-    <img src="https://img.youtube.com/vi/yIXLQcjbeEM/0.jpg" alt="Zero Setup Tutorial" />
-  </a>
-</p>
-
-> [!NOTE]
-> The video and some older community guides still use the upstream `pnpm` workflow. This fork uses `bun` for local development. Follow the written instructions below.
+## Quick Start
 
 ### Prerequisites
 
-**Required Versions:**
-
-- [Bun](https://bun.sh) (v1.2.19 or higher)
-- [Docker](https://docs.docker.com/engine/install/) (v20 or higher)
+- [Bun](https://bun.sh) 1.2.19+
+- [Docker](https://docs.docker.com/engine/install/)
 - [Git](https://git-scm.com/)
 
-Before running the application, you'll need to set up services and configure environment variables. For more details on environment variables, see the [Environment Variables](#environment-variables) section.
+### 1. Clone and install
 
-### Setup Options
+```bash
+git clone --branch staging https://github.com/GrzegorzManiak/ZeroHassle.git
+cd ZeroHassle
+bun install
+```
 
-You can set up Zero in two ways:
-
-<details open>
-<summary><b>Standard Setup (Recommended)</b></summary>
-
-#### Quick Start Guide
-
-1. **Clone and Install**
-
-   ```bash
-   git clone --branch staging https://github.com/GrzegorzManiak/ZeroHassle.git
-   cd ZeroHassle
-
-   bun install
-   ```
-
-2. **Set Up Environment**
-
-   ```bash
-   cp .env.example .env
-   ```
-
-   Then edit `.env` and at minimum:
-
-   - Set `BETTER_AUTH_SECRET` to a random string, for example: `openssl rand -hex 32`
-   - Keep `DATABASE_URL` as `postgresql://postgres:postgres@localhost:5432/zerodotemail` unless you intentionally change the Docker port
-   - Fill provider-specific values like Google OAuth, OpenAI, Autumn, Twilio, and Resend only if you need those integrations locally
-
-   After editing `.env`, sync the app-specific env files and generated types:
-
-   ```bash
-   bun run nizzy sync
-   ```
-
-   If you prefer the interactive helper instead of editing `.env` manually, you can run:
-
-   ```bash
-   bun run nizzy env
-   bun run nizzy sync
-   ```
-
-3. **Start Local Services**
-
-   ```bash
-   bun run docker:db:up
-   ```
-
-   This starts:
-
-   - PostgreSQL on `localhost:5432`
-   - Valkey on `localhost:6379`
-   - An Upstash-compatible Redis HTTP proxy on `localhost:8079`
-
-4. **Initialize the Database**
-
-   ```bash
-   bun run db:push
-   ```
-
-5. **Start the App**
-
-   ```bash
-   bun run dev
-   ```
-
-6. **Open in Browser**
-
-   - Frontend: [http://localhost:3000](http://localhost:3000)
-   - Backend: [http://localhost:8787](http://localhost:8787)
-
-   After the first database push, you can also use the shortcut below on future runs:
-
-   ```bash
-   bun run go
-   ```
-   </details>
-
-<details open>
-<summary><b>Devcontainer Setup</b></summary>
-
-#### Quick Start Guide
-
-1. **Clone and Install**
-
-   ```bash
-   git clone --branch staging https://github.com/GrzegorzManiak/ZeroHassle.git
-   cd ZeroHassle
-   ```
-
-2. **Open in the Devcontainer**
-
-   This repo already includes a devcontainer with Bun, pnpm, Node, Docker-in-Docker, and shell tooling installed.
-
-3. **Install and Configure**
-
-   ```bash
-   bun install
-   cp .env.example .env
-   bun run nizzy sync
-   ```
-
-4. **Start Services and the App**
-
-   ```bash
-   bun run docker:db:up
-   bun run db:push
-   bun run dev
-   ```
-
-5. **Open in Browser**
-
-   Visit [http://localhost:3000](http://localhost:3000)
-     </details>
-
-### Environment Setup
-
-For this fork, the recommended flow is:
+### 2. Create your env file
 
 ```bash
 cp .env.example .env
+```
+
+At minimum, set:
+
+- `BETTER_AUTH_SECRET`
+- `DATABASE_URL`
+- `OPENROUTER_API_KEY`
+- `OPENROUTER_MODEL`
+
+Optional, for real Gmail linking:
+
+- `GOOGLE_CLIENT_ID`
+- `GOOGLE_CLIENT_SECRET`
+
+After editing `.env`, sync the generated app env files:
+
+```bash
 bun run nizzy sync
 ```
 
-Use `bun run nizzy env` if you want the interactive helper instead.
+### 3. Start local services
 
-1. **Better Auth Setup**
+```bash
+bun run docker:db:up
+```
 
-   - Open `.env` and change `BETTER_AUTH_SECRET` to a random string. Use `openssl rand -hex 32` to generate one.
+This starts:
 
-     ```env
-     BETTER_AUTH_SECRET=your_secret_key
-     ```
+- PostgreSQL on `localhost:5432`
+- Valkey on `localhost:6379`
+- Upstash-compatible Redis HTTP proxy on `localhost:8079`
 
-2. **Google OAuth Setup** (Required for Gmail integration)
+### 4. Push the database schema
 
-   - Go to [Google Cloud Console](https://console.cloud.google.com)
-   - Create a new project
-   - Add the following APIs in your Google Cloud Project: [People API](https://console.cloud.google.com/apis/library/people.googleapis.com), [Gmail API](https://console.cloud.google.com/apis/library/gmail.googleapis.com)
-     - Use the links above and click 'Enable' or
-     - Go to 'APIs and Services' > 'Enable APIs and Services' > Search for 'Google People API' and click 'Enable'
-     - Go to 'APIs and Services' > 'Enable APIs and Services' > Search for 'Gmail API' and click 'Enable'
-   - Enable the Google OAuth2 API
-   - Create OAuth 2.0 credentials (Web application type)
-   - Add authorized redirect URIs:
-     - Development:
-       - `http://localhost:8787/api/auth/callback/google`
-     - Production:
-       - `https://your-production-url/api/auth/callback/google`
-   - Add to `.env`:
+```bash
+bun run db:push
+```
 
-     ```env
-     GOOGLE_CLIENT_ID=your_client_id
-     GOOGLE_CLIENT_SECRET=your_client_secret
-     ```
+### 5. Create your first local user
 
-   - Add yourself as a test user:
+```bash
+bun run nizzy create-user
+```
 
-     - Go to [`Audience`](https://console.cloud.google.com/auth/audience)
-     - Under 'Test users' click 'Add Users'
-     - Add your email and click 'Save'
+Then follow the prompts for email, display name, and password.
 
-> [!WARNING]
-> The authorized redirect URIs in Google Cloud Console must match **exactly** what you configure in the `.env`, including the protocol (http/https), domain, and path - these are provided above.
+### 6. Start the app
 
-3. **Autumn Setup** (Required for some encryption)
+If your Docker services are already running, use:
 
-   - Go to [Autumn](https://useautumn.com/)
-   - For Local Use, click [onboarding](https://app.useautumn.com/sandbox/onboarding) button and generate an Autumn Secret Key
-   - For production, select the production mode from upper left corner and generate and fill the other fields. After that, generate an Autumn Secret Key
+```bash
+bun run dev
+```
 
-   - Add to `.env`:
+If you want one command that starts the local Docker stack and then boots the app, use:
 
-   ```env
-   AUTUMN_SECRET_KEY=your_autumn_secret
-   ```
+```bash
+bun run go
+```
 
-4. **Twilio Setup** (Required for SMS Integration)
+Command behavior:
 
-   - Go to the [Twilio](https://www.twilio.com/)
-   - Create a Twilio account if you don’t already have one
-   - From the dashboard, locate your:
+- `bun run dev` starts the frontend and backend dev servers only
+- `bun run go` runs `docker:db:up` first, then starts the dev servers
 
-     - Account SID
-     - Auth Token
-     - Phone Number
+`bun run go` does **not** run `bun run db:push`, so keep step 4 in the setup flow when the schema is not initialized yet.
 
-   - Add to your `.env` file:
+Open:
 
-   ```env
-   TWILIO_ACCOUNT_SID=your_account_sid
-   TWILIO_AUTH_TOKEN=your_auth_token
-   TWILIO_PHONE_NUMBER=your_twilio_phone_number
-   ```
+- Frontend: [http://localhost:3000](http://localhost:3000)
+- Backend: [http://localhost:8787](http://localhost:8787)
 
-### Environment Variables
+### 7. Sign in and enroll TOTP
 
-Recommended local workflow:
+The first login for a CLI-created user will redirect to TOTP setup. After that, login requires password plus authenticator code.
+
+## Environment Notes
+
+The recommended local flow is:
 
 ```bash
 cp .env.example .env
@@ -269,126 +149,142 @@ bun run nizzy sync
 
 `bun run nizzy sync` will:
 
-- copy `.env` into `apps/mail/.env`
-- copy `.env` into `apps/mail/.dev.vars`
-- copy `.env` into `apps/server/.dev.vars`
-- regenerate Wrangler runtime types for both apps
+- copy `.env` into app-specific env files
+- update local Worker env files
+- regenerate Wrangler runtime types
 
-You can also bootstrap `.env` interactively with:
+If you change your local Postgres port, keep these in sync:
+
+- `DATABASE_URL` in `.env`
+- the local Hyperdrive connection string in `apps/server/wrangler.jsonc`
+
+## Required Services
+
+For the core app, you only need:
+
+- PostgreSQL
+- Valkey / Redis proxy from the bundled Docker stack
+- OpenRouter
+
+For real Gmail usage, you also need:
+
+- Google OAuth credentials
+
+That is the point of this fork: avoid the old pile of extra SaaS dependencies unless they are truly necessary.
+
+## Local Account Management
+
+Run `bun run nizzy help` to list commands.
+
+Main account commands:
+
+- `bun run nizzy create-user`
+- `bun run nizzy set-password`
+- `bun run nizzy reset-2fa`
+- `bun run nizzy delete-user`
+
+This is the only supported way to create accounts. There is no public registration route.
+
+## AI Features
+
+All surviving AI features route through one OpenRouter model:
+
+- thread and message summaries
+- compose assistance
+- search query generation
+- sidebar chat over your mailbox
+
+There is no provider switching UI, no agentic tool-calling stack, and no paid-plan gating.
+
+## Useful Scripts
+
+### App lifecycle
 
 ```bash
-bun run nizzy env
+bun run dev
+bun run go
+bun run build
 ```
 
-### Database Setup
+- `bun run dev`: start the app only
+- `bun run go`: start Docker services, then start the app
+- `bun run build`: build all workspaces
 
-Zero uses PostgreSQL for application data. The local Docker stack also includes Valkey and an Upstash-compatible Redis HTTP proxy.
+`bun run go` is the usual local boot command, but it still assumes you have already run `bun run db:push` when needed.
 
-1. **Start Local Services**
+### Local infrastructure
 
-   Run this command to start the local stack:
+```bash
+bun run docker:db:up
+bun run docker:db:stop
+bun run docker:db:down
+bun run docker:db:clean
+```
 
-   ```bash
-   bun run docker:db:up
-   ```
+### Database
 
-   This creates:
+```bash
+bun run db:push
+bun run db:generate
+bun run db:migrate
+bun run db:studio
+```
 
-   - PostgreSQL database `zerodotemail` on `localhost:5432`
-   - Valkey on `localhost:6379`
-   - Upstash-compatible Redis HTTP proxy on `localhost:8079`
+### CLI
 
-2. **Set Up Database Connection**
+```bash
+bun run nizzy
+bun run nizzy help
+```
 
-   Make sure your database connection string is in `.env`, then sync it with:
+### Tests
 
-   ```bash
-   bun run nizzy sync
-   ```
+```bash
+bun run test
+bun run test:ui
+```
 
-   For local development use:
+## Testing
 
-   ```env
-   DATABASE_URL="postgresql://postgres:postgres@localhost:5432/zerodotemail"
-   ```
+The Playwright suite uses a local CLI-managed user and TOTP enrollment flow.
 
-   > [!NOTE]
-   > If port `5432` is already in use on your machine, update the published port in `docker-compose.db.yaml`, then keep `.env` and `apps/server/wrangler.jsonc` in sync with that new port.
+If you want stable local defaults for tests, set these in `.env`:
 
-3. **Database Commands**
+```env
+PLAYWRIGHT_EMAIL=owner@local.test
+PLAYWRIGHT_PASSWORD=ZeroHassle123!
+EMAIL=owner@local.test
+```
 
-   - **Set up database tables**:
+Run:
 
-     ```bash
-     bun run db:push
-     ```
+```bash
+bun run test
+```
 
-   - **Create migration files** (after schema changes):
+## Gmail Setup
 
-     ```bash
-     bun run db:generate
-     ```
+If you want to connect a real Gmail account:
 
-   - **Apply migrations**:
+1. Create a Google Cloud project.
+2. Enable the Gmail API and People API.
+3. Create OAuth web credentials.
+4. Add this callback for local dev:
 
-     ```bash
-     bun run db:migrate
-     ```
+```text
+http://localhost:8787/api/auth/callback/google
+```
 
-   - **View database content**:
+5. Put the client ID and secret into `.env`.
 
-     ```bash
-     bun run db:studio
-     ```
+If Google credentials are omitted, the app can still boot and local accounts still work.
 
-4. **Stop or Reset Services**
+## Contributing
 
-   ```bash
-   bun run docker:db:down
-   ```
+See the [contributing guide](.github/CONTRIBUTING.md).
 
-   Remove containers and named volumes:
-
-   ```bash
-   bun run docker:db:clean
-   ```
-
-### Sync
-
-Background: https://x.com/cmdhaus/status/1940886269950902362
-We're now storing the user's emails in their Durable Object & an R2 bucket. This allow us to speed things up, a lot.
-This also introduces 3 environment variables, `DROP_AGENT_TABLES`,`THREAD_SYNC_MAX_COUNT`, `THREAD_SYNC_LOOP`.
-`DROP_AGENT_TABLES`: should the durable object drop the threads table before starting a sync
-`THREAD_SYNC_MAX_COUNT`: how many threads should we sync? max `500` because it's using the same number for the maxResults number from the driver. i.e 500 results per page.
-`THREAD_SYNC_LOOP`: should make sure to sync all of the items inside a folder? i.e if THREAD_SYNC_MAX_COUNT=500 it will sync 500 threads per request until the folder is fully synced. (should be true in production)
-
-## Contribute
-
-Please refer to the [contributing guide](.github/CONTRIBUTING.md).
-
-If you'd like to help with translating Zero to other languages, check out our [translation guide](.github/TRANSLATION.md).
+If you want to help with translations, see the [translation guide](.github/TRANSLATION.md).
 
 ## Star History
 
 [![Star History Chart](https://api.star-history.com/svg?repos=GrzegorzManiak/ZeroHassle&type=Timeline)](https://www.star-history.com/#GrzegorzManiak/ZeroHassle&Timeline)
-
-## This project wouldn't be possible without these awesome companies
-
-<div style="display: flex; justify-content: center;">
-  <a href="https://vercel.com" style="text-decoration: none;">
-    <img src="public/vercel.png" alt="Vercel" width="96"/>
-  </a>
-  <a href="https://better-auth.com" style="text-decoration: none;">
-    <img src="public/better-auth.png" alt="Better Auth" width="96"/>
-  </a>
-  <a href="https://orm.drizzle.team" style="text-decoration: none;">
-    <img src="public/drizzle-orm.png" alt="Drizzle ORM" width="96"/>
-  </a>
-  <a href="https://coderabbit.com" style="text-decoration: none;">
-    <img src="public/coderabbit.png" alt="Coderabbit AI" width="96"/>
-  </a>
-</div>
-
-## 🤍 The team
-
-Curious who makes Zero? Here are our [contributors and maintainers](https://0.email/contributors)

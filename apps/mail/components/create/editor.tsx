@@ -205,7 +205,7 @@ export default function Editor({
           immediatelyRender={false}
           initialContent={initialValue || defaultEditorContent}
           extensions={[
-            ...defaultExtensions,
+            ...defaultExtensions(),
             Markdown,
             AutoComplete.configure({
               suggestions: {

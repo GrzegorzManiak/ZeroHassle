@@ -12,12 +12,16 @@ import type { Route } from './+types/page';
 
 export async function clientLoader({ request }: Route.ClientLoaderArgs) {
   const session = await authProxy.api.getSession({ headers: request.headers });
-  if (!session) return Response.redirect(`${import.meta.env.VITE_PUBLIC_APP_URL}/login`);
   const url = new URL(request.url);
+
+  if (!session) {
+    return Response.redirect(new URL('/login', url).toString());
+  }
+
   if (url.searchParams.get('to')?.startsWith('mailto:')) {
-    return Response.redirect(
-      `${import.meta.env.VITE_PUBLIC_APP_URL}/mail/compose/handle-mailto?mailto=${encodeURIComponent(url.searchParams.get('to') ?? '')}`,
-    );
+    const handleMailtoUrl = new URL('/mail/compose/handle-mailto', url);
+    handleMailtoUrl.searchParams.set('mailto', url.searchParams.get('to') ?? '');
+    return Response.redirect(handleMailtoUrl.toString());
   }
 
   return Object.fromEntries(url.searchParams.entries()) as {

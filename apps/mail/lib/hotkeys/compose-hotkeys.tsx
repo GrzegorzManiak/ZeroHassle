@@ -9,7 +9,7 @@ export function ComposeHotkeys() {
   const handlers = {
     closeCompose: () => {
       if (isComposeOpen === 'true') {
-        setIsComposeOpen('false');
+        setIsComposeOpen(null);
       }
     },
   };

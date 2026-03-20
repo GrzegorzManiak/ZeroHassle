@@ -522,42 +522,18 @@ const MoreAboutPerson = ({
     isPending,
     data,
     error,
-  } = useMutation(trpc.ai.webSearch.mutationOptions());
+  } = useMutation(trpc.ai.chat.mutationOptions());
   const handleSearch = useCallback(() => {
     doSearch({
-      query: `In 50 words or less: What is the background of ${person.name} & ${person.email}, of ${person.email.split('@')[1]}.
-      This could be a phishing email address, indicate if the domain is suspicious, example: x.io is not a valid domain for x.com | example: x.com is a valid domain for x.com | example: paypalcom.com is not a valid domain for paypal.com`,
+      prompt: `In 50 words or less: What is the background of ${person.name} and ${person.email}? Focus on whether ${person.email.split('@')[1]} looks legitimate or suspicious. There is no web access, so answer only from the mailbox context and the email address itself.`,
     });
-  }, [person.name]);
+  }, [doSearch, person.email, person.name]);
 
   useEffect(() => {
     if (open) {
       handleSearch();
     }
   }, [open]);
-
-  const findSource = useCallback(
-    (id: string) => {
-      const sources = data?.sources;
-      if (!sources) return;
-      return sources.find((source) => source.id === id);
-    },
-    [data],
-  );
-
-  const replaceSourcesInText = useCallback(
-    (text: string) => {
-      const sources = data?.sources;
-      if (!sources) return text;
-      const sourcesRegex = /\[(\d+)\]/g;
-      return text.replaceAll(sourcesRegex, (match, p1) => {
-        console.log('p1', p1);
-        const source = findSource(p1);
-        return source ? `SOURCE HERE` : match;
-      });
-    },
-    [data],
-  );
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -569,7 +545,7 @@ const MoreAboutPerson = ({
           {isPending ? (
             <Loader2 className="animate-spin" />
           ) : data ? (
-            <StreamingText text={replaceSourcesInText(data.text)} />
+            <StreamingText text={data.text} />
           ) : error ? (
             <p>Error: {error.message}</p>
           ) : (
@@ -596,11 +572,11 @@ const MoreAboutQuery = ({
     isPending,
     data,
     error,
-  } = useMutation(trpc.ai.webSearch.mutationOptions());
+  } = useMutation(trpc.ai.chat.mutationOptions());
 
   const handleSearch = useCallback(() => {
     doSearch({
-      query: query,
+      prompt: query,
     });
   }, [query, doSearch]);
 
@@ -609,28 +585,6 @@ const MoreAboutQuery = ({
       handleSearch();
     }
   }, [open, query, handleSearch]);
-
-  const findSource = useCallback(
-    (id: string) => {
-      const sources = data?.sources;
-      if (!sources) return;
-      return sources.find((source) => source.id === id);
-    },
-    [data],
-  );
-
-  const replaceSourcesInText = useCallback(
-    (text: string) => {
-      const sources = data?.sources;
-      if (!sources) return text;
-      const sourcesRegex = /\[(\d+)\]/g;
-      return text.replaceAll(sourcesRegex, (match, p1) => {
-        const source = findSource(p1);
-        return source ? `SOURCE HERE` : match;
-      });
-    },
-    [data, findSource],
-  );
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -642,7 +596,7 @@ const MoreAboutQuery = ({
           {isPending ? (
             <Loader2 className="animate-spin" />
           ) : data ? (
-            <StreamingText text={replaceSourcesInText(data.text)} />
+            <StreamingText text={data.text} />
           ) : error ? (
             <p>Error: {error.message}</p>
           ) : (

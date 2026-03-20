@@ -196,6 +196,13 @@ export function RecipientAutosuggest({
     }
   }, [recipients, onRecipientsChange, isValidEmail]);
 
+  const commitPendingRecipient = useCallback(() => {
+    const pendingValue = inputValue.trim();
+    if (pendingValue && isValidEmail(pendingValue)) {
+      addRecipient(pendingValue);
+    }
+  }, [addRecipient, inputValue, isValidEmail]);
+
   const handleClickOutside = useCallback((event: MouseEvent) => {
     if (
       dropdownRef.current &&
@@ -215,8 +222,11 @@ export function RecipientAutosuggest({
   const handleInputBlur = useCallback(() => {
     setTimeout(() => {
       document.removeEventListener('mousedown', handleClickOutside);
+      commitPendingRecipient();
+      setIsOpen(false);
+      setSelectedIndex(-1);
     }, 150);
-  }, [handleClickOutside]);
+  }, [commitPendingRecipient, handleClickOutside]);
 
   return (
     <div className={cn('relative w-full', className)}>

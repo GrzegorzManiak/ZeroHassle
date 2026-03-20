@@ -1,11 +1,13 @@
 import type { IGetThreadResponse, IGetThreadsResponse } from './driver/types';
 import { OutgoingMessageType } from '../routes/agent/types';
+import { LocalMailManager } from './driver/local';
 import { getContext } from 'hono/context-storage';
 import { connection } from '../db/schema';
 import { defaultPageSize } from './utils';
 import type { HonoContext } from '../ctx';
 import { createClient } from 'dormroom';
 import { createDriver } from './driver';
+import { isLocalMailboxScope } from './local-mailbox';
 import { eq } from 'drizzle-orm';
 import { createDb } from '../db';
 import { Effect } from 'effect';
@@ -574,6 +576,17 @@ export const getActiveConnection = async () => {
 };
 
 export const connectionToDriver = (activeConnection: typeof connection.$inferSelect) => {
+  if (isLocalMailboxScope(activeConnection.scope)) {
+    return new LocalMailManager({
+      auth: {
+        userId: activeConnection.userId,
+        accessToken: activeConnection.accessToken ?? 'local-access-token',
+        refreshToken: activeConnection.refreshToken ?? 'local-refresh-token',
+        email: activeConnection.email,
+      },
+    });
+  }
+
   if (!activeConnection.accessToken || !activeConnection.refreshToken) {
     throw new Error(`Invalid connection ${JSON.stringify(activeConnection?.id)}`);
   }

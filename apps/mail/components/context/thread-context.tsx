@@ -179,7 +179,10 @@ export function ThreadContextMenu({
   const { mutateAsync: createLabel } = useMutation(trpc.labels.create.mutationOptions());
 
   const { isUnread, isStarred, isImportant } = useMemo(() => {
-    const unread = threadData?.hasUnread ?? false;
+    const unread =
+      optimisticState.optimisticRead === null
+        ? (threadData?.hasUnread ?? false)
+        : !optimisticState.optimisticRead;
 
     let starred;
     if (optimisticState.optimisticStarred !== null) {
@@ -200,7 +203,12 @@ export function ThreadContextMenu({
     }
 
     return { isUnread: unread, isStarred: starred, isImportant: important };
-  }, [threadData, optimisticState.optimisticStarred, optimisticState.optimisticImportant]);
+  }, [
+    threadData,
+    optimisticState.optimisticImportant,
+    optimisticState.optimisticRead,
+    optimisticState.optimisticStarred,
+  ]);
 
   const handleMove = (from: string, to: string) => () => {
     try {

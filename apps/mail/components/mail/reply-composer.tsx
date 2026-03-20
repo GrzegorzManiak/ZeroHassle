@@ -15,7 +15,6 @@ import { m } from '@/paraglide/messages';
 import type { Sender } from '@/types';
 import { useQueryState } from 'nuqs';
 import { useEffect } from 'react';
-import posthog from 'posthog-js';
 import { toast } from 'sonner';
 
 interface ReplyComposeProps {
@@ -204,8 +203,6 @@ export default function ReplyCompose({ messageId }: ReplyComposeProps) {
         originalMessage: replyToMessage.decodedBody,
         scheduleAt: data.scheduleAt,
       });
-
-      posthog.capture('Reply Email Sent');
 
       // Reset states
       setMode(null);

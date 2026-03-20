@@ -2,7 +2,13 @@ export const getBrowserTimezone = () => Intl.DateTimeFormat().resolvedOptions().
 
 export const isValidTimezone = (timezone: string) => {
   try {
-    return Intl.supportedValuesOf('timeZone').includes(timezone);
+    const supportedValuesOf = (
+      Intl as typeof Intl & {
+        supportedValuesOf?: (key: 'timeZone') => string[];
+      }
+    ).supportedValuesOf;
+
+    return supportedValuesOf ? supportedValuesOf('timeZone').includes(timezone) : !!timezone;
   } catch (error) {
     console.error(error);
     return false;
