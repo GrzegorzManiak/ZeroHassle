@@ -30,9 +30,10 @@ Most email services today are either **closed-source**, **data-hungry**, or **to
 
 Zero is built with modern and reliable technologies:
 
-- **Frontend**: Next.js, React, TypeScript, TailwindCSS, Shadcn UI
-- **Backend**: Node.js, Drizzle ORM
+- **Frontend**: React Router, React, TypeScript, TailwindCSS, Shadcn UI
+- **Backend**: Cloudflare Workers, Hono, Drizzle ORM
 - **Database**: PostgreSQL
+- **Cache / Queues (local dev)**: Valkey + Upstash-compatible Redis HTTP proxy
 - **Authentication**: Better Auth, Google OAuth
 <!-- - **Testing**: Jest, React Testing Library -->
 
@@ -48,13 +49,16 @@ Watch this helpful video tutorial on how to set up Zero locally:
   </a>
 </p>
 
+> [!NOTE]
+> The video and some older community guides still use the upstream `pnpm` workflow. This fork uses `bun` for local development. Follow the written instructions below.
+
 ### Prerequisites
 
 **Required Versions:**
 
-- [Node.js](https://nodejs.org/en/download) (v18 or higher)
-- [pnpm](https://pnpm.io) (v10 or higher)
+- [Bun](https://bun.sh) (v1.2.19 or higher)
 - [Docker](https://docs.docker.com/engine/install/) (v20 or higher)
+- [Git](https://git-scm.com/)
 
 Before running the application, you'll need to set up services and configure environment variables. For more details on environment variables, see the [Environment Variables](#environment-variables) section.
 
@@ -70,76 +74,124 @@ You can set up Zero in two ways:
 1. **Clone and Install**
 
    ```bash
-   # Clone the repository
-   git clone https://github.com/Mail-0/Zero.git
-   cd Zero
+   git clone --branch staging https://github.com/GrzegorzManiak/ZeroHassle.git
+   cd ZeroHassle
 
-   # Install dependencies
-   pnpm install
-
-   # Start database locally
-   pnpm docker:db:up
+   bun install
    ```
 
 2. **Set Up Environment**
 
-   - Run `pnpm nizzy env` to setup your environment variables
-   - Run `pnpm nizzy sync` to sync your environment variables and types
-   - Start the database with the provided docker compose setup: `pnpm docker:db:up`
-   - Initialize the database: `pnpm db:push`
-
-3. **Start the App**
-
    ```bash
-   pnpm dev
+   cp .env.example .env
    ```
 
-4. **Open in Browser**
+   Then edit `.env` and at minimum:
 
-   Visit [http://localhost:3000](http://localhost:3000)
+   - Set `BETTER_AUTH_SECRET` to a random string, for example: `openssl rand -hex 32`
+   - Keep `DATABASE_URL` as `postgresql://postgres:postgres@localhost:5432/zerodotemail` unless you intentionally change the Docker port
+   - Fill provider-specific values like Google OAuth, OpenAI, Autumn, Twilio, and Resend only if you need those integrations locally
+
+   After editing `.env`, sync the app-specific env files and generated types:
+
+   ```bash
+   bun run nizzy sync
+   ```
+
+   If you prefer the interactive helper instead of editing `.env` manually, you can run:
+
+   ```bash
+   bun run nizzy env
+   bun run nizzy sync
+   ```
+
+3. **Start Local Services**
+
+   ```bash
+   bun run docker:db:up
+   ```
+
+   This starts:
+
+   - PostgreSQL on `localhost:5432`
+   - Valkey on `localhost:6379`
+   - An Upstash-compatible Redis HTTP proxy on `localhost:8079`
+
+4. **Initialize the Database**
+
+   ```bash
+   bun run db:push
+   ```
+
+5. **Start the App**
+
+   ```bash
+   bun run dev
+   ```
+
+6. **Open in Browser**
+
+   - Frontend: [http://localhost:3000](http://localhost:3000)
+   - Backend: [http://localhost:8787](http://localhost:8787)
+
+   After the first database push, you can also use the shortcut below on future runs:
+
+   ```bash
+   bun run go
+   ```
    </details>
 
 <details open>
 <summary><b>Devcontainer Setup</b></summary>
 
-#### Quick Start guide
+#### Quick Start Guide
 
 1. **Clone and Install**
 
    ```bash
-   # Clone the repository
-   git clone https://github.com/Mail-0/Zero.git
-   cd Zero
+   git clone --branch staging https://github.com/GrzegorzManiak/ZeroHassle.git
+   cd ZeroHassle
    ```
 
-   Then open the code in devcontainer and install the dependencies:
+2. **Open in the Devcontainer**
 
-   ```
-   pnpm install
+   This repo already includes a devcontainer with Bun, pnpm, Node, Docker-in-Docker, and shell tooling installed.
 
-   # Start the database locally
-   pnpm docker:db:up
-   ```
+3. **Install and Configure**
 
-2. **Set Up Environment**
-
-   - Run `pnpm nizzy env` to setup your environment variables
-   - Run `pnpm nizzy sync` to sync your environment variables and types
-   - Start the database with the provided docker compose setup: `pnpm docker:db:up`
-   - Initialize the database: `pnpm db:push`
-
-3. **Start The App**
    ```bash
-   pnpm dev
+   bun install
+   cp .env.example .env
+   bun run nizzy sync
    ```
+
+4. **Start Services and the App**
+
+   ```bash
+   bun run docker:db:up
+   bun run db:push
+   bun run dev
+   ```
+
+5. **Open in Browser**
+
    Visit [http://localhost:3000](http://localhost:3000)
      </details>
 
 ### Environment Setup
 
+For this fork, the recommended flow is:
+
+```bash
+cp .env.example .env
+bun run nizzy sync
+```
+
+Use `bun run nizzy env` if you want the interactive helper instead.
+
 1. **Better Auth Setup**
 
-   - Open the `.env` file and change the BETTER_AUTH_SECRET to a random string. (Use `openssl rand -hex 32` to generate a 32 character string)
+   - Open `.env` and change `BETTER_AUTH_SECRET` to a random string. Use `openssl rand -hex 32` to generate one.
 
      ```env
      BETTER_AUTH_SECRET=your_secret_key
@@ -208,63 +260,98 @@ You can set up Zero in two ways:
 
 ### Environment Variables
 
-Run `pnpm nizzy env` to setup your environment variables. It will copy the `.env.example` file to `.env` and fill in the variables for you.
-For local development a connection string example is provided in the `.env.example` file located in the same folder as the database.
+Recommended local workflow:
+
+```bash
+cp .env.example .env
+bun run nizzy sync
+```
+
+`bun run nizzy sync` will:
+
+- copy `.env` into `apps/mail/.env`
+- copy `.env` into `apps/mail/.dev.vars`
+- copy `.env` into `apps/server/.dev.vars`
+- regenerate Wrangler runtime types for both apps
+
+You can also bootstrap `.env` interactively with:
+
+```bash
+bun run nizzy env
+```
 
 ### Database Setup
 
-Zero uses PostgreSQL for storing data. Here's how to set it up:
+Zero uses PostgreSQL for application data. The local Docker stack also includes Valkey and an Upstash-compatible Redis HTTP proxy.
 
-1. **Start the Database**
+1. **Start Local Services**
 
-   Run this command to start a local PostgreSQL instance:
+   Run this command to start the local stack:
 
    ```bash
-   pnpm docker:db:up
+   bun run docker:db:up
    ```
 
-   This creates a database with:
+   This creates:
 
-   - Name: `zerodotemail`
-   - Username: `postgres`
-   - Password: `postgres`
-   - Port: `5432`
+   - PostgreSQL database `zerodotemail` on `localhost:5432`
+   - Valkey on `localhost:6379`
+   - Upstash-compatible Redis HTTP proxy on `localhost:8079`
 
 2. **Set Up Database Connection**
 
-   Make sure your database connection string is in `.env` file. And you have ran `pnpm nizzy sync` to sync the latest env.
+   Make sure your database connection string is in `.env`, then sync it with:
+
+   ```bash
+   bun run nizzy sync
+   ```
 
    For local development use:
 
-   ```
+   ```env
    DATABASE_URL="postgresql://postgres:postgres@localhost:5432/zerodotemail"
    ```
+
+   > [!NOTE]
+   > If port `5432` is already in use on your machine, update the published port in `docker-compose.db.yaml`, then keep `.env` and `apps/server/wrangler.jsonc` in sync with that new port.
 
 3. **Database Commands**
 
    - **Set up database tables**:
 
      ```bash
-     pnpm db:push
+     bun run db:push
      ```
 
    - **Create migration files** (after schema changes):
 
      ```bash
-     pnpm db:generate
+     bun run db:generate
      ```
 
    - **Apply migrations**:
 
      ```bash
-     pnpm db:migrate
+     bun run db:migrate
      ```
 
    - **View database content**:
+
      ```bash
-     pnpm db:studio
+     bun run db:studio
      ```
-     > If you run `pnpm dev` in your terminal, the studio command should be automatically running with the app.
+
+4. **Stop or Reset Services**
+
+   ```bash
+   bun run docker:db:down
+   ```
+
+   Remove containers and named volumes:
+
+   ```bash
+   bun run docker:db:clean
+   ```
 
 ### Sync
 
@@ -283,7 +370,7 @@ If you'd like to help with translating Zero to other languages, check out our [t
 
 ## Star History
 
-[![Star History Chart](https://api.star-history.com/svg?repos=Mail-0/Zero&type=Timeline)](https://www.star-history.com/#Mail-0/Zero&Timeline)
+[![Star History Chart](https://api.star-history.com/svg?repos=GrzegorzManiak/ZeroHassle&type=Timeline)](https://www.star-history.com/#GrzegorzManiak/ZeroHassle&Timeline)
 
 ## This project wouldn't be possible without these awesome companies
 
