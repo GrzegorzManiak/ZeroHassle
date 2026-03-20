@@ -19,7 +19,8 @@
     "./trpc": "./src/trpc/index.ts",
     "./auth": "./src/lib/auth.ts",
     "./auth-providers": "./src/lib/auth-providers.ts",
-    "./schemas": "./src/lib/schemas.ts"
+    "./schemas": "./src/lib/schemas.ts",
+    "./local-accounts": "./src/lib/local-accounts.ts"
   },
   "dependencies": {
     "@ai-sdk/anthropic": "1.2.12",

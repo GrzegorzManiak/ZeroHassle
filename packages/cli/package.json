@@ -6,6 +6,7 @@
   "packageManager": "bun@1.2.19",
   "devDependencies": {
     "@clack/prompts": "0.10.1",
+    "@zero/server": "workspace:*",
     "@zero/tsconfig": "workspace:*",
     "tiny-glob": "0.2.9"
   }

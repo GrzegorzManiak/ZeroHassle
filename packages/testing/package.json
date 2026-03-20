@@ -33,6 +33,7 @@
     "react-dom": "*"
   },
   "dependencies": {
+    "@zero/server": "workspace:*",
     "@tanstack/react-query": "^5.81.5"
   }
 }
