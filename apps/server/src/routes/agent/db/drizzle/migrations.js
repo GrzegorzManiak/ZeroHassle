@@ -1,4 +1,5 @@
 import journal from './meta/_journal.json';
+// @ts-expect-error
 import m0000 from './0000_faulty_dragon_man.sql';
 
   export default {

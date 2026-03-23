@@ -540,6 +540,7 @@ export class OutlookMailManager implements MailManager {
       { draftId, data },
     );
   }
+  // @ts-expect-error
   public getDraft(draftId: string) {
     return this.withErrorHandler(
       'getDraft',
@@ -698,6 +699,7 @@ export class OutlookMailManager implements MailManager {
         if (data.attachments && data.attachments.length > 0) {
           const regularAttachments = await Promise.all(
             data.attachments.map(async (file) => {
+              // @ts-expect-error
               const arrayBuffer = await file.arrayBuffer();
               const buffer = Buffer.from(arrayBuffer);
               const base64Content = buffer.toString('base64');
@@ -1182,6 +1184,7 @@ export class OutlookMailManager implements MailManager {
     if (attachments?.length > 0) {
       const regularAttachments = await Promise.all(
         attachments.map(async (file) => {
+          // @ts-expect-error
           const arrayBuffer = await file.arrayBuffer();
           const buffer = Buffer.from(arrayBuffer);
           const base64Content = buffer.toString('base64');

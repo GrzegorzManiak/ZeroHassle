@@ -34,6 +34,7 @@ aiRouter.post('/do/:action', async (c) => {
   const { db, conn } = createDb(env.HYPERDRIVE.connectionString);
   const user = await db.query.user.findFirst({
     where: (user, { eq, and }) =>
+      // @ts-expect-error
       and(eq(user.phoneNumber, caller), eq(user.phoneNumberVerified, true)),
   });
   if (!user) return c.json({ success: false, error: 'Unauthorized' }, 401);
@@ -105,6 +106,7 @@ aiRouter.post('/call', async (c) => {
   console.log('[DEBUG] Finding user by phone number:', c.req.header('X-Caller'));
   const user = await db.query.user.findFirst({
     where: (user, { eq, and }) =>
+      // @ts-expect-error
       and(eq(user.phoneNumber, c.req.header('X-Caller')!), eq(user.phoneNumberVerified, true)),
   });
 

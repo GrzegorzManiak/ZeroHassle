@@ -1,3 +1,5 @@
+import { RpcTarget } from "cloudflare:workers";
+import { DurableObject, WorkerEntrypoint } from "cloudflare:workers";
 import {
   createUpdatedMatrixFromNewEmail,
   initializeStyleMatrixFromEmail,
@@ -21,16 +23,14 @@ import {
   type AttachmentFile,
 } from './lib/attachments';
 import { SyncThreadsCoordinatorWorkflow } from './workflows/sync-threads-coordinator-workflow';
-import { WorkerEntrypoint, DurableObject, RpcTarget } from 'cloudflare:workers';
 // import { instrument, type ResolveConfigFn } from '@microlabs/otel-cf-workers';
 import { getZeroAgent, getZeroDB, verifyToken } from './lib/server-utils';
 import { SyncThreadsWorkflow } from './workflows/sync-threads-workflow';
 import { ShardRegistry, ZeroAgent, ZeroDriver } from './routes/agent';
 import { ThreadSyncWorker } from './routes/agent/sync-worker';
-import { oAuthDiscoveryMetadata } from 'better-auth/plugins';
+
 import { EProviders, type IEmailSendBatch } from './types';
 import { eq, and, desc, asc, inArray } from 'drizzle-orm';
-import { ThinkingMCP } from './lib/sequential-thinking';
 
 import { contextStorage } from 'hono/context-storage';
 import { defaultUserSettings } from './lib/schemas';
@@ -44,7 +44,6 @@ import { env, type ZeroEnv } from './env';
 import type { HonoContext } from './ctx';
 import { createDb, type DB } from './db';
 import { createAuth } from './lib/auth';
-import { ZeroMCP } from './routes/agent/mcp';
 import { appRouter } from './trpc';
 import { cors } from 'hono/cors';
 import { Hono } from 'hono';
@@ -570,7 +569,7 @@ function hashIpAddress(ip: string | undefined): string | undefined {
 
   for (let i = 0; i < str.length; i++) {
     const char = str.charCodeAt(i);
-    hash = ((hash << 5) - hash) + char;
+    hash = (hash << 5) - hash + char;
     hash = hash & hash; // Convert to 32bit integer
   }
 
@@ -604,13 +603,18 @@ const api = new Hono<HonoContext>()
     });
 
     // Start authentication span
-    const authSpan = TraceContext.startSpan(traceId, 'authentication', {
-      method: c.req.method,
-      url: c.req.url,
-      hasAuthHeader: !!c.req.header('Authorization'),
-    }, {
-      'auth.method': c.req.header('Authorization') ? 'bearer_token' : 'session_cookie'
-    });
+    const authSpan = TraceContext.startSpan(
+      traceId,
+      'authentication',
+      {
+        method: c.req.method,
+        url: c.req.url,
+        hasAuthHeader: !!c.req.header('Authorization'),
+      },
+      {
+        'auth.method': c.req.header('Authorization') ? 'bearer_token' : 'session_cookie',
+      },
+    );
 
     const auth = createAuth();
     c.set('auth', auth);
@@ -619,11 +623,16 @@ const api = new Hono<HonoContext>()
 
     if (c.req.header('Authorization') && !session?.user) {
       // Start token verification span
-      const tokenSpan = TraceContext.startSpan(traceId, 'token_verification', {
-        tokenPresent: true,
-      }, {
-        'auth.token_type': 'jwt'
-      });
+      const tokenSpan = TraceContext.startSpan(
+        traceId,
+        'token_verification',
+        {
+          tokenPresent: true,
+        },
+        {
+          'auth.token_type': 'jwt',
+        },
+      );
 
       const token = c.req.header('Authorization')?.split(' ')[1];
 
@@ -651,10 +660,15 @@ const api = new Hono<HonoContext>()
             });
           }
         } catch (error) {
-          TraceContext.completeSpan(traceId, tokenSpan.id, {
-            success: false,
-            reason: 'token_verification_failed',
-          }, error instanceof Error ? error.message : 'Unknown token error');
+          TraceContext.completeSpan(
+            traceId,
+            tokenSpan.id,
+            {
+              success: false,
+              reason: 'token_verification_failed',
+            },
+            error instanceof Error ? error.message : 'Unknown token error',
+          );
         }
       } else {
         TraceContext.completeSpan(traceId, tokenSpan.id, {
@@ -668,7 +682,7 @@ const api = new Hono<HonoContext>()
     TraceContext.completeSpan(traceId, authSpan.id, {
       authenticated: !!c.var.sessionUser,
       userId: c.var.sessionUser?.id,
-      authMethod: session?.user ? 'session' : (c.req.header('Authorization') ? 'token' : 'none'),
+      authMethod: session?.user ? 'session' : c.req.header('Authorization') ? 'token' : 'none',
     });
 
     // Update trace metadata with user info
@@ -685,11 +699,16 @@ const api = new Hono<HonoContext>()
       await next();
       // Don't complete the request span here - let TRPC middleware handle it
     } catch (error) {
-      TraceContext.completeSpan(traceId, requestSpan.id, {
-        success: false,
+      TraceContext.completeSpan(
+        traceId,
+        requestSpan.id,
+        {
+          success: false,
 
-        statusCode: c.res.status,
-      }, error instanceof Error ? error.message : 'Unknown request error');
+          statusCode: c.res.status,
+        },
+        error instanceof Error ? error.message : 'Unknown request error',
+      );
       throw error;
     }
     // Note: Trace will be completed by TRPC middleware after logging
@@ -750,10 +769,6 @@ const app = new Hono<HonoContext>()
       exposeHeaders: ['X-Zero-Redirect'],
     }),
   )
-  .get('.well-known/oauth-authorization-server', async (c) => {
-    const auth = createAuth();
-    return oAuthDiscoveryMetadata(auth)(c.req.raw);
-  })
   .route('/api', api)
   .get('/health', (c) => c.json({ message: 'Zero Server is Up!' }))
   .get('/', (c) => c.redirect(`${env.VITE_PUBLIC_APP_URL}`))
@@ -1148,10 +1163,8 @@ export default class Entry extends WorkerEntrypoint<ZeroEnv> {
 
 export {
   ZeroAgent,
-  ZeroMCP,
   ZeroDB,
   ZeroDriver,
-  ThinkingMCP,
   WorkflowRunner,
   ThreadSyncWorker,
   SyncThreadsWorkflow,

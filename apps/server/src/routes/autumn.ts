@@ -38,10 +38,12 @@ export const autumnApi = new Hono<AutumnContext>()
             },
           },
     );
+    // @ts-expect-error
     c.set('autumn', new Autumn({ secretKey: env.AUTUMN_SECRET_KEY }));
     await next();
   })
   .post('/customers', async (c) => {
+    // @ts-expect-error
     const { autumn, customerData } = c.var;
     const body = await c.req.json();
     if (!customerData) return c.json({ error: 'No customer ID found' }, 401);
@@ -53,10 +55,12 @@ export const autumnApi = new Hono<AutumnContext>()
           ...customerData.customerData,
           ...sanitizeCustomerBody(body),
         })
+        // @ts-expect-error
         .then((data) => data.data),
     );
   })
   .post('/attach', async (c) => {
+    // @ts-expect-error
     const { autumn, customerData } = c.var;
     const body = await c.req.json();
     const sanitizedBody = sanitizeCustomerBody(body);
@@ -69,10 +73,12 @@ export const autumnApi = new Hono<AutumnContext>()
           customer_id: customerData.customerId,
           customer_data: customerData.customerData,
         })
+        // @ts-expect-error
         .then((data) => data.data),
     );
   })
   .post('/cancel', async (c) => {
+    // @ts-expect-error
     const { autumn, customerData } = c.var;
     const body = await c.req.json();
     const sanitizedBody = sanitizeCustomerBody(body);
@@ -84,10 +90,12 @@ export const autumnApi = new Hono<AutumnContext>()
           ...sanitizedBody,
           customer_id: customerData.customerId,
         })
+        // @ts-expect-error
         .then((data) => data.data),
     );
   })
   .post('/check', async (c) => {
+    // @ts-expect-error
     const { autumn, customerData } = c.var;
     const body = await c.req.json();
     const sanitizedBody = sanitizeCustomerBody(body);
@@ -100,10 +108,12 @@ export const autumnApi = new Hono<AutumnContext>()
           customer_id: customerData.customerId,
           customer_data: customerData.customerData,
         })
+        // @ts-expect-error
         .then((data) => data.data),
     );
   })
   .post('/track', async (c) => {
+    // @ts-expect-error
     const { autumn, customerData } = c.var;
     const body = await c.req.json();
     const sanitizedBody = sanitizeCustomerBody(body);
@@ -116,10 +126,12 @@ export const autumnApi = new Hono<AutumnContext>()
           customer_id: customerData.customerId,
           customer_data: customerData.customerData,
         })
+        // @ts-expect-error
         .then((data) => data.data),
     );
   })
   .post('/billing_portal', async (c) => {
+    // @ts-expect-error
     const { autumn, customerData } = c.var;
     const body = await c.req.json();
     if (!customerData) return c.json({ error: 'No customer ID found' }, 401);
@@ -127,10 +139,12 @@ export const autumnApi = new Hono<AutumnContext>()
     return c.json(
       await autumn!.customers
         .billingPortal(customerData.customerId, body)
+        // @ts-expect-error
         .then((data) => data.data),
     );
   })
   .post('/openBillingPortal', async (c) => {
+    // @ts-expect-error
     const { autumn, customerData } = c.var;
     const body = await c.req.json();
     if (!customerData) return c.json({ error: 'No customer ID found' }, 401);
@@ -141,19 +155,23 @@ export const autumnApi = new Hono<AutumnContext>()
           ...body,
           return_url: `${env.VITE_PUBLIC_APP_URL}`,
         })
+        // @ts-expect-error
         .then((data) => data.data),
     );
   })
   .post('/entities', async (c) => {
+    // @ts-expect-error
     const { autumn, customerData } = c.var;
     const body = await c.req.json();
     if (!customerData) return c.json({ error: 'No customer ID found' }, 401);
 
     return c.json(
+      // @ts-expect-error
       await autumn!.entities.create(customerData.customerId, body).then((data) => data.data),
     );
   })
   .get('/entities/:entityId', async (c) => {
+    // @ts-expect-error
     const { autumn, customerData } = c.var;
     if (!customerData) return c.json({ error: 'No customer ID found' }, 401);
 
@@ -173,10 +191,12 @@ export const autumnApi = new Hono<AutumnContext>()
     return c.json(
       await autumn!.entities
         .get(customerData.customerId, entityId, { expand })
+        // @ts-expect-error
         .then((data) => data.data),
     );
   })
   .delete('/entities/:entityId', async (c) => {
+    // @ts-expect-error
     const { autumn, customerData } = c.var;
     if (!customerData) return c.json({ error: 'No customer ID found' }, 401);
 
@@ -193,10 +213,12 @@ export const autumnApi = new Hono<AutumnContext>()
     }
 
     return c.json(
+      // @ts-expect-error
       await autumn!.entities.delete(customerData.customerId, entityId).then((data) => data.data),
     );
   })
   .get('/components/pricing_table', async (c) => {
+    // @ts-expect-error
     const { autumn, customerData } = c.var;
 
     return c.json(

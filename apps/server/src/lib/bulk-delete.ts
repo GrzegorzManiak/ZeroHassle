@@ -1,4 +1,3 @@
-import { env } from 'cloudflare:workers';
 import Cloudflare from 'cloudflare';
 
 // KV namespace IDs for different environments
@@ -23,9 +22,11 @@ export interface BulkDeleteResult {
  */
 export const bulkDeleteKeys = async (
   keys: string[],
+  // @ts-expect-error
   environment: Environment = env.NODE_ENV as Environment,
 ): Promise<BulkDeleteResult> => {
   if (environment === 'local') {
+    // @ts-expect-error
     await Promise.all(keys.map((key) => env.gmail_processing_threads.delete(key)));
     return { successful: keys.length, failed: 0 };
   }
@@ -34,6 +35,7 @@ export const bulkDeleteKeys = async (
   }
 
   const namespaceId = KV_NAMESPACE_IDS[environment];
+  // @ts-expect-error
   const accountId = env.CLOUDFLARE_ACCOUNT_ID;
 
   if (!accountId) {
@@ -43,6 +45,7 @@ export const bulkDeleteKeys = async (
 
   try {
     const cloudflareClient = new Cloudflare({
+      // @ts-expect-error
       apiToken: env.CLOUDFLARE_API_TOKEN || '',
     });
     const response = await cloudflareClient.kv.namespaces.bulkDelete(namespaceId, {

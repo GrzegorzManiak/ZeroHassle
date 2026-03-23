@@ -12,6 +12,7 @@ export const loggingRouter = router({
                 });
             }
             const sessionId = ctx.sessionUser.id;
+            // @ts-expect-error
             const loggingService = new LoggingService(ctx.c.env);
             return loggingService.getSessionStats(sessionId);
         }),
@@ -25,6 +26,7 @@ export const loggingRouter = router({
                 });
             }
             const sessionId = ctx.sessionUser.id;
+            // @ts-expect-error
             const loggingService = new LoggingService(ctx.c.env);
             loggingService.clearSession(sessionId);
             return { success: true };
@@ -39,6 +41,7 @@ export const loggingRouter = router({
                 });
             }
             const sessionId = ctx.sessionUser.id;
+            // @ts-expect-error
             const loggingService = new LoggingService(ctx.c.env);
             return loggingService.getState(sessionId);
         }),

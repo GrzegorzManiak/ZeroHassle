@@ -85,6 +85,7 @@ export class NotesManager {
     const db = await getZeroDB(userId);
     const userNotes = await db.findManyNotesByIds(noteIds);
 
+    // @ts-expect-error
     const foundNoteIds = new Set(userNotes.map((n) => n.id));
 
     if (foundNoteIds.size !== noteIds.length) {

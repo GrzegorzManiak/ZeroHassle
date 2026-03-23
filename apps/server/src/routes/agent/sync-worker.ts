@@ -1,7 +1,7 @@
+import { DurableObject } from "cloudflare:workers";
 import { connection as connectionSchema } from '../../db/schema';
 import { connectionToDriver } from '../../lib/server-utils';
 import { withRetry } from '../../lib/gmail-rate-limit';
-import { DurableObject } from 'cloudflare:workers';
 import type { ParsedMessage } from '../../types';
 import type { ZeroEnv } from '../../env';
 import { Effect } from 'effect';

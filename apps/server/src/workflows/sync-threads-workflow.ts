@@ -14,10 +14,9 @@
  * Reuse or distribution of this file requires a license from Zero Email Inc.
  */
 import { getZeroAgent, connectionToDriver } from '../lib/server-utils';
-import { WorkflowEntrypoint, WorkflowStep } from 'cloudflare:workers';
-import type { WorkflowEvent } from 'cloudflare:workers';
 import { connection } from '../db/schema';
 import type { ZeroEnv } from '../env';
+import { WorkflowEntrypoint, type WorkflowEvent, type WorkflowStep } from "cloudflare:workers";
 import { eq } from 'drizzle-orm';
 import { createDb } from '../db';
 
@@ -158,6 +157,7 @@ export class SyncThreadsWorkflow extends WorkflowEntrypoint<ZeroEnv, SyncThreads
                   latestReceivedOn: normalizedReceivedOn,
                   latestSubject: latest.subject,
                 },
+                // @ts-expect-error
                 latest.tags.map((tag) => tag.id),
               );
 

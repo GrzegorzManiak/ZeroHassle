@@ -59,6 +59,7 @@ const makeAiChatTestCaseBuilder = (topic: string): (() => Promise<TestCase[]>) =
       • Array length: 7-10
       • No extra keys or comments`,
       prompt: `Generate realistic ${topic} test cases`,
+      // @ts-expect-error
       schema: z.object({
         cases: z.array(
           z.object({
@@ -69,6 +70,7 @@ const makeAiChatTestCaseBuilder = (topic: string): (() => Promise<TestCase[]>) =
       }),
     });
 
+    // @ts-expect-error
     return object.cases;
   };
 };
@@ -86,6 +88,7 @@ const makeGmailSearchTestCaseBuilder = (): (() => Promise<TestCase[]>) => {
       • Array length: 8-12
       • No extra keys or comments`,
       prompt: "Generate Gmail search conversion test cases",
+      // @ts-expect-error
       schema: z.object({
         cases: z.array(
           z.object({
@@ -96,6 +99,7 @@ const makeGmailSearchTestCaseBuilder = (): (() => Promise<TestCase[]>) => {
       }),
     });
 
+    // @ts-expect-error
     return object.cases;
   };
 };
@@ -245,6 +249,7 @@ const makeEmailCompositionTestCaseBuilder = (): (() => Promise<TestCase[]>) => {
       • Array length: 6-8
       • No extra keys or comments`,
       prompt: "Generate email composition test cases",
+      // @ts-expect-error
       schema: z.object({
         cases: z.array(
           z.object({
@@ -255,6 +260,7 @@ const makeEmailCompositionTestCaseBuilder = (): (() => Promise<TestCase[]>) => {
       }),
     });
 
+    // @ts-expect-error
     return object.cases;
   };
 };

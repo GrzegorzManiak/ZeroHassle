@@ -18,10 +18,13 @@ export const connectionsRouter = router({
       const connections = await db.findManyConnections();
 
       const disconnectedIds = connections
+        // @ts-expect-error
         .filter((c) => !c.accessToken || !c.refreshToken)
+        // @ts-expect-error
         .map((c) => c.id);
 
       return {
+        // @ts-expect-error
         connections: connections.map((connection) => {
           return {
             id: connection.id,

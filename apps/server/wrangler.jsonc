@@ -13,7 +13,7 @@
           "fallthrough": true,
         },
       ],
-      "ai": {
+      "_ai": {
         "binding": "AI",
       },
       "vectorize": [
@@ -38,10 +38,7 @@
             "name": "ZERO_AGENT",
             "class_name": "ZeroAgent",
           },
-          {
-            "name": "ZERO_MCP",
-            "class_name": "ZeroMCP",
-          },
+          
           {
             "name": "ZERO_DB",
             "class_name": "ZeroDB",
@@ -50,10 +47,7 @@
             "name": "ZERO_DRIVER",
             "class_name": "ZeroDriver",
           },
-          {
-            "name": "THINKING_MCP",
-            "class_name": "ThinkingMCP",
-          },
+          
           {
             "name": "WORKFLOW_RUNNER",
             "class_name": "WorkflowRunner",
@@ -115,7 +109,7 @@
         },
         {
           "tag": "v2",
-          "new_sqlite_classes": ["ZeroAgent", "ZeroMCP"],
+          "new_sqlite_classes": ["ZeroAgent"],
         },
         {
           "tag": "v3",
@@ -131,7 +125,7 @@
         },
         {
           "tag": "v6",
-          "new_sqlite_classes": ["ThinkingMCP"],
+           
         },
         {
           "tag": "v7",
@@ -237,7 +231,7 @@
       "triggers": {
         "crons": ["0 0 * * *", "0 * * * *"],
       },
-      "ai": {
+      "_ai": {
         "binding": "AI",
       },
       "vectorize": [
@@ -259,10 +253,7 @@
             "name": "ZERO_AGENT",
             "class_name": "ZeroAgent",
           },
-          {
-            "name": "ZERO_MCP",
-            "class_name": "ZeroMCP",
-          },
+          
           {
             "name": "ZERO_DB",
             "class_name": "ZeroDB",
@@ -271,10 +262,7 @@
             "name": "ZERO_DRIVER",
             "class_name": "ZeroDriver",
           },
-          {
-            "name": "THINKING_MCP",
-            "class_name": "ThinkingMCP",
-          },
+          
           {
             "name": "WORKFLOW_RUNNER",
             "class_name": "WorkflowRunner",
@@ -342,7 +330,7 @@
         },
         {
           "tag": "v2",
-          "new_sqlite_classes": ["ZeroAgent", "ZeroMCP"],
+          "new_sqlite_classes": ["ZeroAgent"],
         },
         {
           "tag": "v3",
@@ -362,7 +350,7 @@
         },
         {
           "tag": "v7",
-          "new_sqlite_classes": ["ThinkingMCP"],
+           
         },
         {
           "tag": "v8",
@@ -464,7 +452,7 @@
           "bucket_name": "threads",
         },
       ],
-      "ai": {
+      "_ai": {
         "binding": "AI",
       },
       "vectorize": [
@@ -493,10 +481,7 @@
             "name": "ZERO_AGENT",
             "class_name": "ZeroAgent",
           },
-          {
-            "name": "ZERO_MCP",
-            "class_name": "ZeroMCP",
-          },
+          
           {
             "name": "ZERO_DB",
             "class_name": "ZeroDB",
@@ -505,10 +490,7 @@
             "name": "ZERO_DRIVER",
             "class_name": "ZeroDriver",
           },
-          {
-            "name": "THINKING_MCP",
-            "class_name": "ThinkingMCP",
-          },
+          
           {
             "name": "WORKFLOW_RUNNER",
             "class_name": "WorkflowRunner",
@@ -570,7 +552,7 @@
         },
         {
           "tag": "v2",
-          "new_sqlite_classes": ["ZeroAgent", "ZeroMCP"],
+          "new_sqlite_classes": ["ZeroAgent"],
         },
         {
           "tag": "v3",
@@ -590,7 +572,7 @@
         },
         {
           "tag": "v7",
-          "new_sqlite_classes": ["ThinkingMCP"],
+           
         },
         {
           "tag": "v8",

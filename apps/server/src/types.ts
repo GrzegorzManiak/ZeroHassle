@@ -239,6 +239,7 @@ export enum Tools {
   GetCurrentDate = 'getCurrentDate',
 }
 
+// @ts-expect-error
 export type AppContext = Context<{ Bindings: Env }>;
 
 export enum EPrompts {

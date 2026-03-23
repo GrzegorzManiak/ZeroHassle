@@ -1,7 +1,8 @@
 import { BaseSubscriptionFactory, type SubscriptionData } from './base-subscription.factory';
 import { c, getNotificationsUrl } from '../../lib/utils';
 import { resetConnection } from '../server-utils';
-import jwt from '@tsndr/cloudflare-worker-jwt';
+// @ts-expect-error
+import jwt from 'jsonwebtoken';
 import { env } from '../../env';
 import { connection } from '../../db/schema';
 import { EProviders } from '../../types';

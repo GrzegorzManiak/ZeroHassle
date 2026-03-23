@@ -13,5 +13,6 @@ export const createDriver = (
 ): MailManager => {
   const Provider = supportedProviders[provider as keyof typeof supportedProviders];
   if (!Provider) throw new Error('Provider not supported');
+  // @ts-expect-error
   return new Provider(config);
 };

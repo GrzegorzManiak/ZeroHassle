@@ -1,3 +1,4 @@
+import { DurableObject } from "cloudflare:workers";
 /*
  * Licensed to Zero Email Inc. under one or more contributor license agreements.
  * You may not use this file except in compliance with the Apache License, Version 2.0 (the "License").
@@ -45,14 +46,12 @@ import {
 import type { IGetThreadResponse, IGetThreadsResponse, MailManager } from '../../lib/driver/types';
 import { connectionToDriver, getZeroSocketAgent, reSyncThread } from '../../lib/server-utils';
 import { generateWhatUserCaresAbout, type UserTopic } from '../../lib/analyze/interests';
-import { DurableObjectOAuthClientProvider } from 'agents/mcp/do-oauth-client-provider';
 import { AiChatPrompt, GmailSearchAssistantSystemPrompt } from '../../lib/prompts';
 import { Migratable, Queryable, Transfer } from 'dormroom';
 import type { CreateDraftData } from '../../lib/schemas';
 import { drizzle } from 'drizzle-orm/durable-sqlite';
 import { getPrompt } from '../../pipelines.effect';
 import { AIChatAgent } from 'agents/ai-chat-agent';
-import { DurableObject } from 'cloudflare:workers';
 import { ToolOrchestrator } from './orchestrator';
 import { eq, desc, isNotNull } from 'drizzle-orm';
 import migrations from './db/drizzle/migrations';
@@ -875,7 +874,7 @@ export class ZeroDriver extends DurableObject<ZeroEnv> {
   public async setupAuth() {
     if (this.name === 'general') return;
     if (!this.driver) {
-      const { db, conn } = createDb(this.env.HYPERDRIVE.connectionString);
+      const { db, conn } = createDb(this.env.DATABASE_URL);
       const _connection = await db.query.connection.findFirst({
         where: eq(connection.id, this.name),
       });
@@ -1146,6 +1145,7 @@ export class ZeroDriver extends DurableObject<ZeroEnv> {
 
         // Normalize received date
         const normalizedReceivedOn = yield* Effect.try({
+          // @ts-expect-error
           try: () => new Date(latest.receivedOn).toISOString(),
           catch: (error) =>
             new DateNormalizationError(`Failed to normalize date for ${threadId}`, error),
@@ -1169,10 +1169,13 @@ export class ZeroDriver extends DurableObject<ZeroEnv> {
               id: threadId,
               threadId,
               providerId: 'google',
+              // @ts-expect-error
               latestSender: latest.sender,
               latestReceivedOn: normalizedReceivedOn,
+              // @ts-expect-error
               latestSubject: latest.subject,
             },
+            // @ts-expect-error
             latest.tags.map((tag) => tag.id),
           ),
         ).pipe(
@@ -1301,6 +1304,7 @@ export class ZeroDriver extends DurableObject<ZeroEnv> {
     // Create parallel Effect operations
     const ragEffect = Effect.tryPromise(() =>
       this.inboxRag(query).then((rag) => {
+        // @ts-expect-error
         const ids = rag?.data?.map((d) => d.attributes.threadId).filter(Boolean) ?? [];
         return ids.slice(0, maxResults);
       }),
@@ -1886,32 +1890,9 @@ export class ZeroDriver extends DurableObject<ZeroEnv> {
 export class ZeroAgent extends AIChatAgent<ZeroEnv> {
   private chatMessageAbortControllers: Map<string, AbortController> = new Map();
 
-  async registerZeroMCP() {
-    await this.mcp.connect(this.env.VITE_PUBLIC_BACKEND_URL + '/sse', {
-      transport: {
-        authProvider: new DurableObjectOAuthClientProvider(
-          this.ctx.storage,
-          'zero-mcp',
-          this.env.VITE_PUBLIC_BACKEND_URL,
-        ),
-      },
-    });
-  }
 
-  async registerThinkingMCP() {
-    await this.mcp.connect(this.env.VITE_PUBLIC_BACKEND_URL + '/mcp/thinking/sse', {
-      transport: {
-        authProvider: new DurableObjectOAuthClientProvider(
-          this.ctx.storage,
-          'thinking-mcp',
-          this.env.VITE_PUBLIC_BACKEND_URL,
-        ),
-      },
-    });
-  }
 
   onStart() {
-    this.registerThinkingMCP();
   }
 
   async onConnect(connection: Connection): Promise<void> {
@@ -1939,11 +1920,10 @@ export class ZeroAgent extends AIChatAgent<ZeroEnv> {
         const connectionId = this.name;
         const orchestrator = new ToolOrchestrator(dataStream, connectionId);
 
-        const mcpTools = this.mcp.unstable_getAITools();
 
         const rawTools = {
           ...(await authTools(connectionId)),
-          ...mcpTools,
+          
         };
 
         const tools = orchestrator.processTools(rawTools);

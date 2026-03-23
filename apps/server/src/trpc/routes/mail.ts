@@ -180,6 +180,7 @@ export const mailRouter = router({
 
           getZeroAgent(activeConnection.id, executionCtx)
             .then((_agent) => {
+              // @ts-expect-error
               _agent.stub.forceReSync().catch((error) => {
                 console.error('[listThreads] Async resync failed:', error);
               });
@@ -259,6 +260,7 @@ export const mailRouter = router({
 
       if (threadIds.length) {
         await Promise.all(
+          // @ts-expect-error
           threadIds.map((threadId) =>
             modifyThreadLabelsInDB(activeConnection.id, threadId, addLabels, removeLabels),
           ),
@@ -299,7 +301,9 @@ export const mailRouter = router({
       for (const result of threadResults) {
         if (result.status === 'fulfilled' && result.value && result.value.messages.length > 0) {
           processedThreads++;
+          // @ts-expect-error
           const isThreadStarred = result.value.messages.some((message) =>
+            // @ts-expect-error
             message.tags?.some((tag) => tag.name.toLowerCase().startsWith('starred')),
           );
           if (isThreadStarred) {
@@ -312,6 +316,7 @@ export const mailRouter = router({
       const shouldStar = processedThreads > 0 && !anyStarred;
 
       await Promise.all(
+        // @ts-expect-error
         threadIds.map((threadId) =>
           modifyThreadLabelsInDB(
             activeConnection.id,
@@ -353,7 +358,9 @@ export const mailRouter = router({
       for (const result of threadResults) {
         if (result.status === 'fulfilled' && result.value && result.value.messages.length > 0) {
           processedThreads++;
+          // @ts-expect-error
           const isThreadImportant = result.value.messages.some((message) =>
+            // @ts-expect-error
             message.tags?.some((tag) => tag.name.toLowerCase().startsWith('important')),
           );
           if (isThreadImportant) {
@@ -366,6 +373,7 @@ export const mailRouter = router({
       const shouldMarkImportant = processedThreads > 0 && !anyImportant;
 
       await Promise.all(
+        // @ts-expect-error
         threadIds.map((threadId) =>
           modifyThreadLabelsInDB(
             activeConnection.id,

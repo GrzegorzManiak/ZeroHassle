@@ -38,6 +38,7 @@ export class ToolOrchestrator {
     if (toolName === Tools.WebSearch) {
       return tool({
         description: 'Search the web for information using Perplexity AI',
+        // @ts-expect-error
         parameters: z.object({
           query: z.string().describe('The query to search the web for'),
         }),
@@ -71,6 +72,7 @@ export class ToolOrchestrator {
       return tool({
         description:
           'Search the inbox for emails using natural language. Returns only an array of threadIds.',
+        // @ts-expect-error
         parameters: z.object({
           query: z.string().describe('The query to search the inbox for'),
           folder: z.string().describe('The folder to search the inbox for').default('inbox'),

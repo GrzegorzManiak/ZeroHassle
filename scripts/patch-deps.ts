@@ -65,3 +65,49 @@ patchFile('node_modules/novel/dist/index.js', (contents) => {
 
   throw new Error('[patch:deps] Could not patch novel react-tweet import');
 });
+
+patchFile('node_modules/dormroom/mod.ts', (contents) => {
+  return contents
+    .replace(
+      'import {\n  ExecFn,\n  RawFn,\n  studioMiddleware,\n  StudioOptions,\n  QueryableObject,\n  GetSchemaFn,\n  QueryableHandler,\n} from "queryable-object";',
+      'import type {\n  ExecFn,\n  RawFn,\n  StudioOptions,\n  QueryableObject,\n  GetSchemaFn,\n  QueryableHandler,\n} from "queryable-object";\nimport { studioMiddleware } from "queryable-object";'
+    )
+    .replace('import { getMultiStub, MultiStubConfig } from "multistub";', 'import { getMultiStub, type MultiStubConfig } from "multistub";')
+    .replace('if (url.pathname === (studioConfig.pathname || "/db")) {', 'if (url.pathname === ((studioConfig || {} as any).pathname || "/db")) {');
+});
+
+patchFile('node_modules/multistub/multistub.ts', (contents) => {
+  return contents.replace(
+    'const [primaryStub, ...secondaryStubs] = getStubs(namespace, configs);',
+    'const [primaryStub, ...secondaryStubs] = getStubs(namespace, configs as any);'
+  );
+});
+
+patchFile('node_modules/queryable-object/queryable.ts', (contents) => {
+  return contents.replace(
+    'export { studioMiddleware, StudioOptions } from "./studio-middleware";',
+    'export type { StudioOptions } from "./studio-middleware";\nexport { studioMiddleware } from "./studio-middleware";'
+  );
+});
+
+patchFile('node_modules/queryable-object/studio-middleware.ts', (contents) => {
+  return contents.replace(
+    'columnNames.reduce((obj, col, idx)',
+    'columnNames.reduce((obj: any, col: any, idx: any)'
+  );
+});
+
+patchFile('node_modules/remote-sql-cursor/do.ts', (contents) => {
+  let updated = contents.replace(
+    'export {\n  RemoteSqlStorageCursor,\n  exec,\n  makeStub,\n  SqlStorageRow,\n  SqlStorageValue,\n} from "./js";',
+    'export type {\n  SqlStorageRow,\n  SqlStorageValue,\n} from "./js";\nexport { RemoteSqlStorageCursor, exec, makeStub } from "./js";'
+  );
+  updated = updated.replace(/error\.message/g, '(error as any).message');
+  return updated;
+});
+
+patchFile('node_modules/transferable-object/transferable-object.ts', (contents) => {
+  let updated = contents.replace(/undefined,/g, 'undefined as any,');
+  updated = updated.replace('return super.fetch(request);', 'return super.fetch!(request);');
+  return updated;
+});

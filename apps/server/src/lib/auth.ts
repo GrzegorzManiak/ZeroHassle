@@ -1,16 +1,16 @@
-import { ensureDefaultUserSettings } from './local-accounts';
-import { ensureLocalMailbox } from './local-mailbox';
-import { createAuthMiddleware, jwt, bearer, twoFactor } from 'better-auth/plugins';
 import { type Account, betterAuth, type BetterAuthOptions } from 'better-auth';
 import { getBrowserTimezone, isValidTimezone } from './timezones';
 import { drizzleAdapter } from 'better-auth/adapters/drizzle';
-import { createDb } from '../db';
+import { jwt, bearer, twoFactor } from 'better-auth/plugins';
+import { ensureDefaultUserSettings } from './local-accounts';
 import { getZeroDB, resetConnection } from './server-utils';
 import { getSocialProviders } from './auth-providers';
-import { redis } from './services';
+import { ensureLocalMailbox } from './local-mailbox';
 import { APIError } from 'better-auth/api';
 import { type EProviders } from '../types';
 import { createDriver } from './driver';
+import { redis } from './services';
+import { createDb } from '../db';
 import { env } from '../env';
 
 const LOCAL_DEV_HOSTNAMES = new Set(['localhost', '127.0.0.1']);
@@ -160,6 +160,7 @@ export const createAuth = () => {
 
           const revokedAccounts = (
             await Promise.allSettled(
+              // @ts-expect-error
               connections.map(async (connection) => {
                 if (!connection.accessToken || !connection.refreshToken) return false;
                 const driver = createDriver(connection.providerId, {
@@ -209,7 +210,7 @@ export const createAuth = () => {
       autoSignInAfterVerification: false,
     },
     hooks: {
-      after: createAuthMiddleware(async (ctx) => {
+      after: async (ctx: any) => {
         const newSession = ctx.context.newSession;
         if (!newSession) {
           return;
@@ -218,9 +219,7 @@ export const createAuth = () => {
         const { db } = createDb(env.HYPERDRIVE.connectionString);
         const headerTimezone = ctx.headers?.get('x-vercel-ip-timezone');
         const timezone =
-          headerTimezone && isValidTimezone(headerTimezone)
-            ? headerTimezone
-            : getBrowserTimezone();
+          headerTimezone && isValidTimezone(headerTimezone) ? headerTimezone : getBrowserTimezone();
 
         await ensureDefaultUserSettings(db, newSession.user.id, timezone);
 
@@ -234,7 +233,7 @@ export const createAuth = () => {
             name: newSession.user.name,
           });
         }
-      }),
+      },
     },
     ...createAuthConfig(),
   });

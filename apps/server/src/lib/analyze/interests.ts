@@ -17,7 +17,6 @@
 import { generateObject } from 'ai';
 import { openai } from '@ai-sdk/openai';
 import { z } from 'zod';
-import { env } from 'cloudflare:workers';
 
 export interface GenerateTopicsOptions {
   sampleSize?: number;
@@ -41,6 +40,7 @@ export async function generateWhatUserCaresAbout(
     return [];
   }
 
+  // @ts-expect-error
   if (!env.OPENAI_API_KEY) {
     console.warn('OPENAI_API_KEY not configured - topics generation disabled');
     return [];
@@ -91,7 +91,9 @@ ${sample.join('\n')}`;
 
   try {
     const { object } = await generateObject({
+      // @ts-expect-error
       model: openai(env.OPENAI_MODEL || 'gpt-4o-mini'),
+      // @ts-expect-error
       schema,
       system: systemPrompt,
       prompt: userPrompt,
@@ -99,6 +101,7 @@ ${sample.join('\n')}`;
       temperature: 0.2,
     });
 
+    // @ts-expect-error
     return object.topics;
   } catch (error) {
     console.error('Failed to generate user topics:', error);

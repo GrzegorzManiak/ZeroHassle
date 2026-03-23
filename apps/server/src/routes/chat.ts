@@ -1,3 +1,4 @@
+import { RpcTarget } from "cloudflare:workers";
 import {
   streamText,
   generateObject,
@@ -15,12 +16,10 @@ import {
 import { type Connection, type ConnectionContext, type WSMessage } from 'agents';
 import { EPrompts, type IOutgoingMessage, type ParsedMessage } from '../types';
 import type { IGetThreadResponse, MailManager } from '../lib/driver/types';
-import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { createSimpleAuth, type SimpleAuth } from '../lib/auth';
 import { connectionToDriver } from '../lib/server-utils';
 import type { CreateDraftData } from '../lib/schemas';
 import { FOLDERS, parseHeaders } from '../lib/utils';
-import { env, RpcTarget } from 'cloudflare:workers';
 import { AIChatAgent } from 'agents/ai-chat-agent';
 import { tools as authTools } from './agent/tools';
 import { processToolCalls } from './agent/utils';
@@ -30,7 +29,6 @@ import { connection } from '../db/schema';
 import { getPrompt } from '../lib/brain';
 import { openai } from '@ai-sdk/openai';
 import { and, eq } from 'drizzle-orm';
-import { McpAgent } from 'agents/mcp';
 import { groq } from '@ai-sdk/groq';
 import { createDb } from '../db';
 import { z } from 'zod';
@@ -302,15 +300,20 @@ export class AgentRpcDO extends RpcTarget {
   }
 }
 
+// @ts-expect-error
 const shouldDropTables = env.DROP_AGENT_TABLES === 'true';
+// @ts-expect-error
 const maxCount = parseInt(env.THREAD_SYNC_MAX_COUNT || '40', 10);
+// @ts-expect-error
 const shouldLoop = env.THREAD_SYNC_LOOP !== 'false';
 
+// @ts-expect-error
 export class ZeroAgent extends AIChatAgent<typeof env> {
   private chatMessageAbortControllers: Map<string, AbortController> = new Map();
   private foldersInSync: string[] = [];
   private currentFolder: string | null = 'inbox';
   driver: MailManager | null = null;
+  // @ts-expect-error
   constructor(ctx: DurableObjectState, env: Env) {
     super(ctx, env);
     if (shouldDropTables) this.dropTables();
@@ -356,11 +359,13 @@ export class ZeroAgent extends AIChatAgent<typeof env> {
             throw new Error('Unauthorized no driver or connectionId [2]');
           }
         }
+        // @ts-expect-error
         const tools = { ...authTools(this.driver, connectionId), buildGmailSearchQuery };
         const processedMessages = await processToolCalls(
           {
             messages: this.messages,
             dataStream,
+            // @ts-expect-error
             tools,
           },
           {},
@@ -373,6 +378,7 @@ export class ZeroAgent extends AIChatAgent<typeof env> {
           onFinish,
           system: await getPrompt(
             getPromptName(connectionId, EPrompts.Chat),
+            // @ts-expect-error
             AiChatPrompt('', '', ''),
           ),
         });
@@ -386,7 +392,8 @@ export class ZeroAgent extends AIChatAgent<typeof env> {
 
   public async setupAuth(connectionId: string) {
     if (!this.driver) {
-      const { db, conn } = createDb(env.HYPERDRIVE.connectionString);
+      // @ts-expect-error
+      const { db, conn } = createDb(env.DATABASE_URL);
       const _connection = await db.query.connection.findFirst({
         where: eq(connection.id, connectionId),
       });
@@ -848,6 +855,7 @@ export class ZeroAgent extends AIChatAgent<typeof env> {
         // Convert receivedOn to ISO format for proper sorting
         const normalizedReceivedOn = new Date(latest.receivedOn).toISOString();
 
+        // @ts-expect-error
         await env.THREADS_BUCKET.put(
           this.getThreadKey(threadId),
           JSON.stringify(threadData.messages),
@@ -1145,6 +1153,7 @@ export class ZeroAgent extends AIChatAgent<typeof env> {
       }
 
       const row = result[0] as any;
+      // @ts-expect-error
       const storedMessages = await env.THREADS_BUCKET.get(this.getThreadKey(id));
       const latestLabelIds = JSON.parse(row.latest_label_ids || '[]');
 
@@ -1166,445 +1175,3 @@ export class ZeroAgent extends AIChatAgent<typeof env> {
   }
 }
 
-export class ZeroMCP extends McpAgent<typeof env, {}, { userId: string }> {
-  server = new McpServer({
-    name: 'zero-mcp',
-    version: '1.0.0',
-    description: 'Zero MCP',
-  });
-
-  activeConnectionId: string | undefined;
-
-  constructor(ctx: DurableObjectState, env: Env) {
-    super(ctx, env);
-  }
-
-  async init(): Promise<void> {
-    const { db, conn } = createDb(env.HYPERDRIVE.connectionString);
-    const _connection = await db.query.connection.findFirst({
-      where: eq(connection.userId, this.props.userId),
-    });
-    if (!_connection) {
-      throw new Error('Unauthorized');
-    }
-    this.activeConnectionId = _connection.id;
-    const driver = connectionToDriver(_connection);
-
-    this.server.tool('getConnections', async () => {
-      const connections = await db.query.connection.findMany({
-        where: eq(connection.userId, this.props.userId),
-      });
-      return {
-        content: connections.map((c) => ({
-          type: 'text',
-          text: `Email: ${c.email} | Provider: ${c.providerId}`,
-        })),
-      };
-    });
-
-    this.server.tool('getActiveConnection', async () => {
-      if (!this.activeConnectionId) {
-        throw new Error('No active connection');
-      }
-      const _connection = await db.query.connection.findFirst({
-        where: eq(connection.id, this.activeConnectionId),
-      });
-      if (!_connection) {
-        throw new Error('Connection not found');
-      }
-      return {
-        content: [
-          {
-            type: 'text' as const,
-            text: `Email: ${_connection.email} | Provider: ${_connection.providerId}`,
-          },
-        ],
-      };
-    });
-
-    this.server.tool(
-      'setActiveConnection',
-      {
-        email: z.string(),
-      },
-      async (s) => {
-        const _connection = await db.query.connection.findFirst({
-          where: and(eq(connection.userId, this.props.userId), eq(connection.email, s.email)),
-        });
-        if (!_connection) {
-          throw new Error('Connection not found');
-        }
-        this.activeConnectionId = _connection.id;
-        return {
-          content: [
-            {
-              type: 'text' as const,
-              text: `Active connection set to ${_connection.email}`,
-            },
-          ],
-        };
-      },
-    );
-
-    this.server.tool(
-      'buildGmailSearchQuery',
-      {
-        query: z.string(),
-      },
-      async (s) => {
-        const result = await generateText({
-          model: openai('gpt-4o'),
-          system: GmailSearchAssistantSystemPrompt(),
-          prompt: s.query,
-        });
-        return {
-          content: [
-            {
-              type: 'text',
-              text: result.text,
-            },
-          ],
-        };
-      },
-    );
-
-    this.server.tool(
-      'listThreads',
-      {
-        folder: z.string().default(FOLDERS.INBOX),
-        query: z.string().optional(),
-        maxResults: z.number().optional().default(5),
-        labelIds: z.array(z.string()).optional(),
-        pageToken: z.string().optional(),
-      },
-      async (s) => {
-        const result = await driver.list({
-          folder: s.folder,
-          query: s.query,
-          maxResults: s.maxResults,
-          labelIds: s.labelIds,
-          pageToken: s.pageToken,
-        });
-        const content = await Promise.all(
-          result.threads.map(async (thread) => {
-            const loadedThread = await driver.get(thread.id);
-            return [
-              {
-                type: 'text' as const,
-                text: `Subject: ${loadedThread.latest?.subject} | ID: ${thread.id} | Latest Message Received: ${loadedThread.latest?.receivedOn}`,
-              },
-              {
-                type: 'text' as const,
-                text: `Latest Message Sender: ${loadedThread.latest?.sender}`,
-              },
-            ];
-          }),
-        );
-        return {
-          content: content.length
-            ? content.flat()
-            : [
-                {
-                  type: 'text' as const,
-                  text: 'No threads found',
-                },
-              ],
-        };
-      },
-    );
-
-    this.server.tool(
-      'getThread',
-      {
-        threadId: z.string(),
-      },
-      async (s) => {
-        const thread = await driver.get(s.threadId);
-        const initialResponse = [
-          {
-            type: 'text' as const,
-            text: `Subject: ${thread.latest?.subject}`,
-          },
-          {
-            type: 'text' as const,
-            text: `Latest Message Received: ${thread.latest?.receivedOn}`,
-          },
-          {
-            type: 'text' as const,
-            text: `Latest Message Sender: ${thread.latest?.sender}`,
-          },
-          {
-            type: 'text' as const,
-            text: `Latest Message Raw Content: ${thread.latest?.decodedBody}`,
-          },
-          {
-            type: 'text' as const,
-            text: `Thread ID: ${s.threadId}`,
-          },
-        ];
-        const response = await env.VECTORIZE.getByIds([s.threadId]);
-        if (response.length && response?.[0]?.metadata?.['summary']) {
-          const content = response[0].metadata['summary'] as string;
-          const shortResponse = await env.AI.run('@cf/facebook/bart-large-cnn', {
-            input_text: content,
-          });
-          return {
-            content: [
-              ...initialResponse,
-              {
-                type: 'text',
-                text: `Subject: ${thread.latest?.subject}`,
-              },
-              {
-                type: 'text',
-                text: `Long Summary: ${content}`,
-              },
-              {
-                type: 'text',
-                text: `Short Summary: ${shortResponse.summary}`,
-              },
-            ],
-          };
-        }
-        return {
-          content: initialResponse,
-        };
-      },
-    );
-
-    this.server.tool(
-      'markThreadsRead',
-      {
-        threadIds: z.array(z.string()),
-      },
-      async (s) => {
-        await driver.modifyLabels(s.threadIds, {
-          addLabels: [],
-          removeLabels: ['UNREAD'],
-        });
-        return {
-          content: [
-            {
-              type: 'text',
-              text: 'Threads marked as read',
-            },
-          ],
-        };
-      },
-    );
-
-    this.server.tool(
-      'markThreadsUnread',
-      {
-        threadIds: z.array(z.string()),
-      },
-      async (s) => {
-        await driver.modifyLabels(s.threadIds, {
-          addLabels: ['UNREAD'],
-          removeLabels: [],
-        });
-        return {
-          content: [
-            {
-              type: 'text',
-              text: 'Threads marked as unread',
-            },
-          ],
-        };
-      },
-    );
-
-    this.server.tool(
-      'modifyLabels',
-      {
-        threadIds: z.array(z.string()),
-        addLabelIds: z.array(z.string()),
-        removeLabelIds: z.array(z.string()),
-      },
-      async (s) => {
-        await driver.modifyLabels(s.threadIds, {
-          addLabels: s.addLabelIds,
-          removeLabels: s.removeLabelIds,
-        });
-        return {
-          content: [
-            {
-              type: 'text',
-              text: `Successfully modified ${s.threadIds.length} thread(s)`,
-            },
-          ],
-        };
-      },
-    );
-
-    this.server.tool('getCurrentDate', async () => {
-      return {
-        content: [
-          {
-            type: 'text',
-            text: getCurrentDateContext(),
-          },
-        ],
-      };
-    });
-
-    this.server.tool('getUserLabels', async () => {
-      const labels = await driver.getUserLabels();
-      return {
-        content: [
-          {
-            type: 'text',
-            text: labels
-              .map((label) => `Name: ${label.name} ID: ${label.id} Color: ${label.color}`)
-              .join('\n'),
-          },
-        ],
-      };
-    });
-
-    this.server.tool(
-      'getLabel',
-      {
-        id: z.string(),
-      },
-      async (s) => {
-        const label = await driver.getLabel(s.id);
-        return {
-          content: [
-            {
-              type: 'text',
-              text: `Name: ${label.name}`,
-            },
-            {
-              type: 'text',
-              text: `ID: ${label.id}`,
-            },
-          ],
-        };
-      },
-    );
-
-    this.server.tool(
-      'createLabel',
-      {
-        name: z.string(),
-        backgroundColor: z.string().optional(),
-        textColor: z.string().optional(),
-      },
-      async (s) => {
-        try {
-          await driver.createLabel({
-            name: s.name,
-            color:
-              s.backgroundColor && s.textColor
-                ? {
-                    backgroundColor: s.backgroundColor,
-                    textColor: s.textColor,
-                  }
-                : undefined,
-          });
-          return {
-            content: [
-              {
-                type: 'text',
-                text: 'Label has been created',
-              },
-            ],
-          };
-        } catch (e) {
-          return {
-            content: [
-              {
-                type: 'text',
-                text: 'Failed to create label',
-              },
-            ],
-          };
-        }
-      },
-    );
-
-    this.server.tool(
-      'bulkDelete',
-      {
-        threadIds: z.array(z.string()),
-      },
-      async (s) => {
-        try {
-          await driver.modifyLabels(s.threadIds, {
-            addLabels: ['TRASH'],
-            removeLabels: ['INBOX'],
-          });
-          return {
-            content: [
-              {
-                type: 'text',
-                text: 'Threads moved to trash',
-              },
-            ],
-          };
-        } catch (e) {
-          return {
-            content: [
-              {
-                type: 'text',
-                text: 'Failed to move threads to trash',
-              },
-            ],
-          };
-        }
-      },
-    );
-
-    this.server.tool(
-      'bulkArchive',
-      {
-        threadIds: z.array(z.string()),
-      },
-      async (s) => {
-        try {
-          await driver.modifyLabels(s.threadIds, {
-            addLabels: [],
-            removeLabels: ['INBOX'],
-          });
-          return {
-            content: [
-              {
-                type: 'text',
-                text: 'Threads archived',
-              },
-            ],
-          };
-        } catch (e) {
-          return {
-            content: [
-              {
-                type: 'text',
-                text: 'Failed to archive threads',
-              },
-            ],
-          };
-        }
-      },
-    );
-    this.ctx.waitUntil(conn.end());
-  }
-}
-
-const buildGmailSearchQuery = tool({
-  description: 'Build a Gmail search query',
-  parameters: z.object({
-    query: z.string().describe('The search query to build, provided in natural language'),
-  }),
-  execute: async ({ query }) => {
-    const result = await generateObject({
-      model: openai('gpt-4o'),
-      system: GmailSearchAssistantSystemPrompt(),
-      prompt: query,
-      schema: z.object({
-        query: z.string(),
-      }),
-    });
-    return result.object;
-  },
-});

@@ -13,11 +13,10 @@
  *
  * Reuse or distribution of this file requires a license from Zero Email Inc.
  */
-import { WorkflowEntrypoint, WorkflowStep } from 'cloudflare:workers';
 import { connectionToDriver } from '../lib/server-utils';
-import type { WorkflowEvent } from 'cloudflare:workers';
 import { connection } from '../db/schema';
 import type { ZeroEnv } from '../env';
+import { WorkflowEntrypoint, type WorkflowEvent, type WorkflowStep } from "cloudflare:workers";
 import { eq } from 'drizzle-orm';
 import { createDb } from '../db';
 

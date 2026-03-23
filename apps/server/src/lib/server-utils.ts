@@ -1,13 +1,13 @@
 import type { IGetThreadResponse, IGetThreadsResponse } from './driver/types';
 import { OutgoingMessageType } from '../routes/agent/types';
-import { LocalMailManager } from './driver/local';
+import { isLocalMailboxScope } from './local-mailbox';
 import { getContext } from 'hono/context-storage';
+import { LocalMailManager } from './driver/local';
 import { connection } from '../db/schema';
 import { defaultPageSize } from './utils';
 import type { HonoContext } from '../ctx';
 import { createClient } from 'dormroom';
 import { createDriver } from './driver';
-import { isLocalMailboxScope } from './local-mailbox';
 import { eq } from 'drizzle-orm';
 import { createDb } from '../db';
 import { Effect } from 'effect';
@@ -20,8 +20,9 @@ const MAX_SHARD_SIZE = mbToBytes(8192);
 
 export const getZeroDB = async (userId: string) => {
   const stub = env.ZERO_DB.get(env.ZERO_DB.idFromName(userId));
-  const rpcTarget = await stub.setMetaData(userId);
-  return rpcTarget;
+  // @ts-ignore
+  const rpcTarget = await (stub as any).setMetaData(userId);
+  return rpcTarget as any;
 };
 
 class MockExecutionContext implements ExecutionContext {
@@ -32,7 +33,7 @@ class MockExecutionContext implements ExecutionContext {
       console.error('MockExecutionContext: Error in waitUntil', error);
     }
   }
-  passThroughOnException(): void { }
+  passThroughOnException(): void {}
   props: any;
 }
 
@@ -41,16 +42,16 @@ const getRegistryClient = async (connectionId: string) => {
     doNamespace: env.SHARD_REGISTRY,
     configs: [{ name: `connection:${connectionId}:registry` }],
     ctx: new MockExecutionContext(),
-  });
+  }) as any;
   return registryClient;
 };
 
 const getShardClient = async (connectionId: string, shardId: string) => {
   const shardClient = createClient({
-    doNamespace: env.ZERO_DRIVER,
+    doNamespace: env.ZERO_DRIVER as any,
     ctx: new MockExecutionContext(),
     configs: [{ name: `connection:${connectionId}:shard:${shardId}` }],
-  });
+  }) as any;
   try {
     await shardClient.stub.setName(connectionId);
     await shardClient.stub.setupAuth();
@@ -288,15 +289,15 @@ export const getThread: (
   connectionId: string,
   threadId: string,
 ) => {
-    const result = await Effect.runPromise(getThreadEffect(connectionId, threadId));
-    if (!result.result) {
-      throw new Error(`Thread ${threadId} not found`);
-    }
-    if (!result.shardId) {
-      throw new Error(`Thread ${threadId} not found in any shard`);
-    }
-    return { result: result.result, shardId: result.shardId };
-  };
+  const result = await Effect.runPromise(getThreadEffect(connectionId, threadId));
+  if (!result.result) {
+    throw new Error(`Thread ${threadId} not found`);
+  }
+  if (!result.shardId) {
+    throw new Error(`Thread ${threadId} not found in any shard`);
+  }
+  return { result: result.result, shardId: result.shardId };
+};
 
 export const modifyThreadLabelsInDB = async (
   connectionId: string,
@@ -542,7 +543,7 @@ export const sendDoState = async (connectionId: string) => {
 
 export const getZeroSocketAgent = async (connectionId: string) => {
   const stub = env.ZERO_AGENT.get(env.ZERO_AGENT.idFromName(connectionId));
-  return stub;
+  return stub as any;
 };
 
 export const getActiveConnection = async () => {
@@ -562,7 +563,6 @@ export const getActiveConnection = async () => {
   if (!firstConnection) {
     try {
       if (auth) {
-        await auth.api.revokeSession({ headers: c.req.raw.headers });
         await auth.api.signOut({ headers: c.req.raw.headers });
       }
     } catch (err) {
@@ -616,8 +616,6 @@ export const verifyToken = async (token: string) => {
   const data = (await response.json()) as any;
   return !!data;
 };
-
-
 
 export const resetConnection = async (connectionId: string) => {
   const { db, conn } = createDb(env.HYPERDRIVE.connectionString);

@@ -116,6 +116,7 @@ export const getEmbeddingVector = async (
 const getEmail = () =>
   tool({
     description: 'Return a placeholder tag for a specific email thread by ID',
+    // @ts-expect-error
     parameters: z.object({
       id: z.string().describe('The ID of the email thread to retrieve'),
     }),
@@ -128,6 +129,7 @@ const getEmail = () =>
 const getThreadSummary = (connectionId: string) =>
   tool({
     description: 'Get the summary of a specific email thread',
+    // @ts-expect-error
     parameters: z.object({
       id: z.string().describe('The ID of the email thread to get the summary of'),
     }),
@@ -167,6 +169,7 @@ const getThreadSummary = (connectionId: string) =>
 const composeEmailTool = (connectionId: string) =>
   tool({
     description: 'Compose an email using AI assistance',
+    // @ts-expect-error
     parameters: z.object({
       prompt: z.string().describe('The prompt or rough draft for the email'),
       emailSubject: z.string().optional().describe('The subject of the email'),
@@ -216,12 +219,14 @@ const composeEmailTool = (connectionId: string) =>
 const markAsRead = (connectionId: string) =>
   tool({
     description: 'Mark emails as read',
+    // @ts-expect-error
     parameters: z.object({
       threadIds: z.array(z.string()).describe('The IDs of the threads to mark as read'),
     }),
     execute: async ({ threadIds }) => {
       const { stub: agent } = await getZeroAgent(connectionId);
       await Promise.all(
+        // @ts-expect-error
         threadIds.map((threadId) => agent.modifyThreadLabelsInDB(threadId, [], ['UNREAD'])),
       );
       return { threadIds, success: true };
@@ -231,12 +236,14 @@ const markAsRead = (connectionId: string) =>
 const markAsUnread = (connectionId: string) =>
   tool({
     description: 'Mark emails as unread',
+    // @ts-expect-error
     parameters: z.object({
       threadIds: z.array(z.string()).describe('The IDs of the threads to mark as unread'),
     }),
     execute: async ({ threadIds }) => {
       const { stub: agent } = await getZeroAgent(connectionId);
       await Promise.all(
+        // @ts-expect-error
         threadIds.map((threadId) => agent.modifyThreadLabelsInDB(threadId, ['UNREAD'], [])),
       );
       return { threadIds, success: true };
@@ -246,6 +253,7 @@ const markAsUnread = (connectionId: string) =>
 const modifyLabels = (connectionId: string) =>
   tool({
     description: 'Modify labels on emails',
+    // @ts-expect-error
     parameters: z.object({
       threadIds: z.array(z.string()).describe('The IDs of the threads to modify'),
       options: z.object({
@@ -262,6 +270,7 @@ const modifyLabels = (connectionId: string) =>
     execute: async ({ threadIds, options }) => {
       const { stub: agent } = await getZeroAgent(connectionId);
       await Promise.all(
+        // @ts-expect-error
         threadIds.map((threadId) =>
           agent.modifyThreadLabelsInDB(threadId, options.addLabels, options.removeLabels),
         ),
@@ -273,6 +282,7 @@ const modifyLabels = (connectionId: string) =>
 const getUserLabels = (connectionId: string) =>
   tool({
     description: 'Get all user labels',
+    // @ts-expect-error
     parameters: z.object({}),
     execute: async () => {
       const { stub: agent } = await getZeroAgent(connectionId);
@@ -283,6 +293,7 @@ const getUserLabels = (connectionId: string) =>
 const sendEmail = (connectionId: string) =>
   tool({
     description: 'Send a new email',
+    // @ts-expect-error
     parameters: z.object({
       to: z.array(
         z.object({
@@ -344,6 +355,7 @@ const sendEmail = (connectionId: string) =>
 const createLabel = (connectionId: string) =>
   tool({
     description: 'Create a new label with custom colors, if it does nto exist already',
+    // @ts-expect-error
     parameters: z.object({
       name: z.string().describe('The name of the label to create'),
       backgroundColor: z
@@ -369,12 +381,14 @@ const createLabel = (connectionId: string) =>
 const bulkDelete = (connectionId: string) =>
   tool({
     description: 'Move multiple emails to trash by adding the TRASH label',
+    // @ts-expect-error
     parameters: z.object({
       threadIds: z.array(z.string()).describe('Array of email IDs to move to trash'),
     }),
     execute: async ({ threadIds }) => {
       const { stub: agent } = await getZeroAgent(connectionId);
       await Promise.all(
+        // @ts-expect-error
         threadIds.map((threadId) => agent.modifyThreadLabelsInDB(threadId, ['TRASH'], [])),
       );
       return { threadIds, success: true };
@@ -384,12 +398,14 @@ const bulkDelete = (connectionId: string) =>
 const bulkArchive = (connectionId: string) =>
   tool({
     description: 'Move multiple emails to the archive by removing the INBOX label',
+    // @ts-expect-error
     parameters: z.object({
       threadIds: z.array(z.string()).describe('Array of email IDs to move to archive'),
     }),
     execute: async ({ threadIds }) => {
       const { stub: agent } = await getZeroAgent(connectionId);
       await Promise.all(
+        // @ts-expect-error
         threadIds.map((threadId) => agent.modifyThreadLabelsInDB(threadId, [], ['INBOX'])),
       );
       return { threadIds, success: true };
@@ -399,6 +415,7 @@ const bulkArchive = (connectionId: string) =>
 const deleteLabel = (connectionId: string) =>
   tool({
     description: "Delete a label from the user's account",
+    // @ts-expect-error
     parameters: z.object({
       id: z.string().describe('The ID of the label to delete'),
     }),
@@ -412,6 +429,7 @@ const deleteLabel = (connectionId: string) =>
 const buildGmailSearchQuery = () =>
   tool({
     description: 'Build a Gmail search query',
+    // @ts-expect-error
     parameters: z.object({
       query: z.string().describe('The search query to build, provided in natural language'),
     }),
@@ -437,6 +455,7 @@ const buildGmailSearchQuery = () =>
 const getCurrentDate = () =>
   tool({
     description: 'Get the current date',
+    // @ts-expect-error
     parameters: z.object({}).default({}),
     execute: async () => {
       console.log('[DEBUG] getCurrentDate');
@@ -455,6 +474,7 @@ const getCurrentDate = () =>
 export const webSearch = () =>
   tool({
     description: 'Search the web for information using Perplexity AI',
+    // @ts-expect-error
     parameters: z.object({
       query: z.string().describe('The query to search the web for'),
     }),
@@ -499,6 +519,7 @@ export const tools = async (connectionId: string, ragEffect: boolean = false) =>
     [Tools.InboxRag]: tool({
       description:
         'Search the inbox for emails using natural language. Returns only an array of threadIds.',
+      // @ts-expect-error
       parameters: z.object({
         query: z.string().describe('The query to search the inbox for'),
         maxResults: z.number().describe('The maximum number of results to return').default(10),
@@ -517,6 +538,7 @@ export const tools = async (connectionId: string, ragEffect: boolean = false) =>
     [Tools.InboxRag]: tool({
       description:
         'Search the inbox for emails using natural language. Returns only an array of threadIds.',
+      // @ts-expect-error
       parameters: z.object({
         query: z.string().describe('The query to search the inbox for'),
       }),

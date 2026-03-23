@@ -340,6 +340,7 @@ const extractStyleMatrix = async (emailBody: string) => {
 
   const { object: result } = await generateObject({
     model: google('gemini-2.0-flash'),
+    // @ts-expect-error
     schema,
     temperature: 0,
     maxTokens: 600,
@@ -364,9 +365,12 @@ const extractStyleMatrix = async (emailBody: string) => {
     },
   });
 
+  // @ts-expect-error
   const greeting = result.greetingForm?.trim().toLowerCase();
+  // @ts-expect-error
   const signOff = result.signOffForm?.trim().toLowerCase();
   return {
+    // @ts-expect-error
     ...result,
     greeting: greeting ?? null,
     signOff: signOff ?? null,
